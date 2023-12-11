@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/interline-io/transitland-lib/log"
+	"github.com/interline-io/log"
 )
 
 func WithMetric(m ApiMetric) func(http.Handler) http.Handler {

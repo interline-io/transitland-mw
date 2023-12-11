@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/interline-io/transitland-lib/log"
+	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authz"
 	openfga "github.com/openfga/go-sdk"
 )

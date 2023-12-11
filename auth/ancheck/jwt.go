@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/form3tech-oss/jwt-go"
-	"github.com/interline-io/transitland-lib/log"
+	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
 	"github.com/interline-io/transitland-mw/internal/util"
 )

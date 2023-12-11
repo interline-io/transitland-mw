@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/amberflo/metering-go/v2"
-	"github.com/interline-io/transitland-lib/log"
+	"github.com/interline-io/log"
 	"github.com/rs/zerolog"
 	"github.com/xtgo/uuid"
 )

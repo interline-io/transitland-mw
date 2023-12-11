@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/interline-io/transitland-lib/log"
+	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
 )
 
