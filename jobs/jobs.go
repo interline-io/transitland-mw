@@ -13,10 +13,11 @@ type JobArgs map[string]any
 
 // Job queue
 type JobQueue interface {
+	Run(JobWorker) error
 	AddJob(Job) error
 	AddWorker(string, GetWorker, int) error
 	Use(JobMiddleware)
-	Run() error
+	Start() error
 	Stop() error
 }
 
@@ -40,12 +41,6 @@ func (job *Job) HexKey() (string, error) {
 	sum := sha1.Sum(bytes)
 	return job.JobType + ":" + hex.EncodeToString(sum[:]), nil
 }
-
-// JobOptions is configuration passed to worker.
-// type JobOptions struct {
-// 	JobQueue JobQueue
-// 	Logger   zerolog.Logger
-// }
 
 // GetWorker returns a new worker for this job type
 type GetWorker func(Job) (JobWorker, error)

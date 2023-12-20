@@ -59,13 +59,17 @@ func (f *LocalJobs) AddJob(job Job) error {
 	return nil
 }
 
+func (f *LocalJobs) Run(w JobWorker) error {
+	return nil
+}
+
 func (f *LocalJobs) processMessage(getWorker GetWorker, job Job) error {
 	job = Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
 		JobDeadline: job.JobDeadline,
-		Logger:      job.Logger,
 		Unique:      job.Unique,
+		Logger:      job.Logger,
 		JobQueue:    f,
 		jobId:       fmt.Sprintf("%d", atomic.AddUint64(&jobCounter, 1)),
 	}
@@ -114,7 +118,7 @@ func (f *LocalJobs) AddWorker(queue string, getWorker GetWorker, count int) erro
 	return nil
 }
 
-func (f *LocalJobs) Run() error {
+func (f *LocalJobs) Start() error {
 	if f.running {
 		return errors.New("already running")
 	}

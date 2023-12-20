@@ -98,6 +98,10 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 	return f.manager, err
 }
 
+func (f *RedisJobs) Run(w JobWorker) error {
+	return nil
+}
+
 func (f *RedisJobs) processMessage(queueName string, getWorker GetWorker, msg *workers.Msg) error {
 	j := msg.Args()
 	job := Job{
@@ -165,7 +169,7 @@ func (f *RedisJobs) AddWorker(queue string, getWorker GetWorker, count int) erro
 	return nil
 }
 
-func (f *RedisJobs) Run() error {
+func (f *RedisJobs) Start() error {
 	log.Infof("jobs: running")
 	manager, err := f.getManager()
 	if err == nil {

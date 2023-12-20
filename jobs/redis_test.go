@@ -34,7 +34,7 @@ func TestRedisJobs(t *testing.T) {
 			time.Sleep(200 * time.Millisecond)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		rtJobs.Start()
 		assert.Equal(t, len(feeds), int(count))
 	})
 	t.Run("unique", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestRedisJobs(t *testing.T) {
 			time.Sleep(1000 * time.Millisecond)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		rtJobs.Start()
 		assert.Equal(t, int64(104), count)
 	})
 	t.Run("deadline", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRedisJobs(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		rtJobs.Start()
 		assert.Equal(t, int64(2), count)
 	})
 }
