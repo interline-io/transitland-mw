@@ -3,6 +3,7 @@ package testutil
 import (
 	"os"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/internal/dbutil"
 	"github.com/jmoiron/sqlx"
@@ -29,4 +30,15 @@ func MustOpenTestDB() *sqlx.DB {
 		return nil
 	}
 	return db
+}
+
+func CheckTestRedisClient() (string, bool) {
+	_, a, ok := CheckEnv("TL_TEST_REDIS_URL")
+	return a, ok
+}
+
+func MustOpenTestRedisClient() *redis.Client {
+	redisUrl := os.Getenv("TL_TEST_REDIS_URL")
+	client := redis.NewClient(&redis.Options{Addr: redisUrl})
+	return client
 }
