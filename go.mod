@@ -12,7 +12,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240125004252-e943425b44f5
-	github.com/interline-io/transitland-dbutil v0.0.0-20240125034233-184b25bca566
+	github.com/interline-io/transitland-dbutil v0.0.0-20240125235111-f1eeaf6b15c2
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0

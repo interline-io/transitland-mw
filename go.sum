@@ -169,6 +169,8 @@ github.com/interline-io/log v0.0.0-20240125004252-e943425b44f5 h1:yVINV1lUdAvq9G
 github.com/interline-io/log v0.0.0-20240125004252-e943425b44f5/go.mod h1:chJaM8SKcHI6ivoeFuZ8M8axTjSV4TPmuQ+sAyAHa34=
 github.com/interline-io/transitland-dbutil v0.0.0-20240125034233-184b25bca566 h1:3jCcU+j8+/fOtasd39yn7Dlyj3dnsr41xYQ8S/ZiCjk=
 github.com/interline-io/transitland-dbutil v0.0.0-20240125034233-184b25bca566/go.mod h1:G9O1IzC6cYbRpLcDBUvzDBFqtzACtEbGEYbN9aiShNs=
+github.com/interline-io/transitland-dbutil v0.0.0-20240125235111-f1eeaf6b15c2 h1:GMhtBEAT/rT6Q8psvxOyIdFkkCI8U1ND5Cyk+VJucVA=
+github.com/interline-io/transitland-dbutil v0.0.0-20240125235111-f1eeaf6b15c2/go.mod h1:HnqcbShsLA66ovyhroLwUHLFWvUNIXDZ1t9dgo4yS7Q=
 github.com/jarcoal/httpmock v1.3.1 h1:iUx3whfZWVf3jT01hQTO/Eo5sAYtB2/rqaUuOtpInww=
 github.com/jarcoal/httpmock v1.3.1/go.mod h1:3yb8rc4BI7TCBhFY8ng0gjuLKJNquuDNiPaZjnENuYg=
 github.com/jehiah/go-strftime v0.0.0-20171201141054-1d33003b3869 h1:IPJ3dvxmJ4uczJe5YQdrYB16oTJlGSC/OyZDqUk9xX4=
