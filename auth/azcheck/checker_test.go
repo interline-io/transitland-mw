@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/interline-io/transitland-mw/auth/authn"
 	"github.com/interline-io/transitland-mw/auth/authz"
-	"github.com/interline-io/transitland-mw/internal/testutil"
+	"github.com/interline-io/transitland-mw/testdata"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -95,7 +96,7 @@ func TestChecker(t *testing.T) {
 		t.Skip(a)
 		return
 	}
-	dbx := testutil.MustOpenTestDB()
+	dbx := testutil.MustOpenTestDB(t)
 	checkerTestData := []testCase{
 		// Assign users to tenants
 		{
@@ -1804,10 +1805,10 @@ func checkActionsToMap(v []Action) map[string]bool {
 }
 
 func newTestChecker(t testing.TB, url string, testData []testCase) *Checker {
-	dbx := testutil.MustOpenTestDB()
+	dbx := testutil.MustOpenTestDB(t)
 	cfg := CheckerConfig{
 		FGAEndpoint:      url,
-		FGALoadModelFile: testutil.RelPath("test/authz/tls.json"),
+		FGALoadModelFile: testdata.Path("authz/tls.json"),
 		GlobalAdmin:      "global_admin",
 	}
 

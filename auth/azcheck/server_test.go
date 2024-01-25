@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/interline-io/transitland-mw/auth/ancheck"
 	"github.com/interline-io/transitland-mw/auth/authz"
-	"github.com/interline-io/transitland-mw/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
@@ -19,7 +19,7 @@ func TestServer(t *testing.T) {
 		t.Skip(a)
 		return
 	}
-	dbx := testutil.MustOpenTestDB()
+	dbx := testutil.MustOpenTestDB(t)
 	serverTestData := []testCase{
 		{
 			Subject:  newEntityKey(TenantType, "tl-tenant"),
