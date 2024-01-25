@@ -98,13 +98,12 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 	return f.manager, err
 }
 
-func (f *RedisJobs) processMessage(queueName string, getWorker GetWorker, jo JobOptions, msg *workers.Msg) error {
+func (f *RedisJobs) processMessage(queueName string, getWorker GetWorker, msg *workers.Msg) error {
 	j := msg.Args()
 	job := Job{
 		JobType: msg.Class(),
 		jobId:   msg.Jid(),
 		Queue:   queueName,
-		Opts:    jo,
 	}
 	job.JobArgs, _ = j.Get("job_args").Map()
 	job.JobDeadline, _ = j.Get("job_deadline").Int64()
@@ -150,13 +149,13 @@ func (f *RedisJobs) processMessage(queueName string, getWorker GetWorker, jo Job
 	return nil
 }
 
-func (f *RedisJobs) AddWorker(queue string, getWorker GetWorker, jo JobOptions, count int) error {
+func (f *RedisJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
 	manager, err := f.getManager()
 	if err != nil {
 		return err
 	}
 	processMessage := func(msg *workers.Msg) error {
-		return f.processMessage(queue, getWorker, jo, msg)
+		return f.processMessage(queue, getWorker, msg)
 	}
 	if queue == "" {
 		queue = "default"

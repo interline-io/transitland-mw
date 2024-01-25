@@ -12,14 +12,20 @@ type jlog struct {
 }
 
 func (w *jlog) Run(ctx context.Context, job Job) error {
+	// Create logger for this job
+	ctxLogger := log.For(ctx).With().Str("job_type", job.JobType).Str("job_id", job.jobId).Logger()
+
+	// Attach to the context
+	ctx = ctxLogger.WithContext(ctx)
+
+	// Run next job
 	t1 := time.Now()
-	job.Opts.Logger = log.Logger.With().Str("job_type", job.JobType).Str("job_id", job.jobId).Logger()
-	job.Opts.Logger.Info().Msg("job: started")
+	ctxLogger.Info().Msg("job: started")
 	if err := w.JobWorker.Run(ctx, job); err != nil {
-		job.Opts.Logger.Error().Err(err).Msg("job: error")
+		ctxLogger.Error().Err(err).Msg("job: error")
 		return err
 	}
-	job.Opts.Logger.Info().Int64("job_time_ms", (time.Now().UnixNano()-t1.UnixNano())/1e6).Msg("job: completed")
+	ctxLogger.Info().Int64("job_time_ms", (time.Now().UnixNano()-t1.UnixNano())/1e6).Msg("job: completed")
 	return nil
 
 }

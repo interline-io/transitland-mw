@@ -26,7 +26,7 @@ func TestRedisJobs(t *testing.T) {
 			w := testWorker{count: &count}
 			return &w, nil
 		}
-		rtJobs.AddWorker("", testGetWorker, JobOptions{}, 1)
+		rtJobs.AddWorker("", testGetWorker, 1)
 		for _, feed := range feeds {
 			rtJobs.AddJob(Job{JobType: "test", Unique: false, JobArgs: JobArgs{"feed_id": feed}})
 		}
@@ -62,7 +62,7 @@ func TestRedisJobs(t *testing.T) {
 				rtJobs.AddJob(job)
 			}
 		}
-		rtJobs.AddWorker("", testGetWorker, JobOptions{}, 4)
+		rtJobs.AddWorker("", testGetWorker, 4)
 		go func() {
 			time.Sleep(1000 * time.Millisecond)
 			rtJobs.Stop()
@@ -80,7 +80,7 @@ func TestRedisJobs(t *testing.T) {
 		rtJobs.AddJob(Job{JobType: "testUnique", Unique: false, JobArgs: JobArgs{"test": "test"}, JobDeadline: 0})
 		rtJobs.AddJob(Job{JobType: "testUnique", Unique: false, JobArgs: JobArgs{"test": "test"}, JobDeadline: time.Now().Add(1 * time.Hour).Unix()})
 		rtJobs.AddJob(Job{JobType: "testUnique", Unique: false, JobArgs: JobArgs{"test": "test"}, JobDeadline: time.Now().Add(-1 * time.Hour).Unix()})
-		rtJobs.AddWorker("", testGetWorker, JobOptions{}, 1)
+		rtJobs.AddWorker("", testGetWorker, 1)
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			rtJobs.Stop()
