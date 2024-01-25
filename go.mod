@@ -1,8 +1,6 @@
 module github.com/interline-io/transitland-mw
 
-go 1.21.1
-
-toolchain go1.21.5
+go 1.21.5
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -14,6 +12,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240125004252-e943425b44f5
+	github.com/interline-io/transitland-dbutil v0.0.0-20240125034233-184b25bca566
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
@@ -54,5 +53,6 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
+	gopkg.in/dnaeon/go-vcr.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

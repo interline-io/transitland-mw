@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/interline-io/transitland-mw/auth/authz"
-	"github.com/interline-io/transitland-mw/internal/testutil"
+	"github.com/interline-io/transitland-mw/testdata"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1074,7 +1075,7 @@ func newTestFGAClient(t testing.TB, url string, testTuples []testCase) *FGAClien
 	if _, err := fgac.CreateStore(context.Background(), "test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fgac.CreateModel(context.Background(), testutil.RelPath("test/authz/tls.json")); err != nil {
+	if _, err := fgac.CreateModel(context.Background(), testdata.Path("authz/tls.json")); err != nil {
 		t.Fatal(err)
 	}
 	for _, tk := range testTuples {

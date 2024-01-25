@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/interline-io/transitland-mw/internal/testutil"
+	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +16,7 @@ func TestRedisJobs(t *testing.T) {
 		t.Skip(a)
 		return
 	}
-	client := testutil.MustOpenTestRedisClient()
+	client := testutil.MustOpenTestRedisClient(t)
 
 	t.Run("simple", func(t *testing.T) {
 		// Ugly :(
