@@ -59,13 +59,12 @@ func (f *LocalJobs) AddJob(job Job) error {
 	return nil
 }
 
-func (f *LocalJobs) processMessage(getWorker GetWorker, jo JobOptions, job Job) error {
+func (f *LocalJobs) processMessage(getWorker GetWorker, job Job) error {
 	job = Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
 		JobDeadline: job.JobDeadline,
 		Unique:      job.Unique,
-		Opts:        jo,
 		jobId:       fmt.Sprintf("%d", atomic.AddUint64(&jobCounter, 1)),
 	}
 	now := time.Now().In(time.UTC).Unix()
@@ -99,12 +98,12 @@ func (f *LocalJobs) processMessage(getWorker GetWorker, jo JobOptions, job Job) 
 	return w.Run(context.TODO(), job)
 }
 
-func (f *LocalJobs) AddWorker(queue string, getWorker GetWorker, jo JobOptions, count int) error {
+func (f *LocalJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
 	if f.running {
 		return errors.New("already running")
 	}
 	processMessage := func(job Job) error {
-		return f.processMessage(getWorker, jo, job)
+		return f.processMessage(getWorker, job)
 	}
 	log.Infof("jobs: created job listener")
 	for i := 0; i < count; i++ {
