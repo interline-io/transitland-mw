@@ -11,8 +11,8 @@ require (
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redis/redismock/v8 v8.11.5
-	github.com/interline-io/log v0.0.0-20240125004252-e943425b44f5
-	github.com/interline-io/transitland-dbutil v0.0.0-20240125235455-33b68e42cbe9
+	github.com/interline-io/log v0.0.0-20240126000327-05bb90e4de4f
+	github.com/interline-io/transitland-dbutil v0.0.0-20240126000951-f2dcc062261d
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
