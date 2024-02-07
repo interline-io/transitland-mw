@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -35,25 +36,56 @@ type CacheMeterData struct {
 	Value float64
 }
 
+// Horrible hack to pass users
+type userPasser struct {
+	lock  sync.Mutex
+	users map[string]MeterUser
+}
+
 // Wraps a meter with caching
 type CacheMeterProvider struct {
+	users *userPasser
 	cache *rcache.Cache[CacheMeterKey, CacheMeterData]
 	MeterProvider
 }
 
 func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *redis.Client, recheck time.Duration, expires time.Duration, refresh time.Duration) *CacheMeterProvider {
+	// Horrible hack: pass user by string
+	up := &userPasser{
+		users: map[string]MeterUser{},
+	}
+
+	// Refresh function
 	refreshFn := func(ctx context.Context, key CacheMeterKey) (CacheMeterData, error) {
 		fmt.Println("recheck:", key)
+
+		// Get user
+		up.lock.Lock()
+		user, ok := up.users[key.User]
+		up.lock.Unlock()
+		if !ok {
+			panic("no user")
+		}
+
+		// Get value
 		val, ok := provider.GetValue(
-			nil,
+			user,
 			key.MeterName,
 			time.Unix(key.Start, 0),
 			time.Unix(key.End, 0),
 			nil,
 		)
 		fmt.Println("recheck result:", val, ok)
+
+		// Clear user
+		up.lock.Lock()
+		delete(up.users, key.User)
+		up.lock.Unlock()
+
 		return CacheMeterData{Value: val}, nil
 	}
+
+	// Create cache
 	cache := rcache.NewCache[CacheMeterKey, CacheMeterData](
 		refreshFn,
 		topic,
@@ -64,6 +96,7 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 	cache.Start(refresh)
 	return &CacheMeterProvider{
 		MeterProvider: provider,
+		users:         up,
 		cache:         cache,
 	}
 }
@@ -77,6 +110,11 @@ func (c *CacheMeterProvider) NewMeter(u MeterUser) ApiMeter {
 }
 
 func (m *CacheMeterProvider) GetValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+	// Horrible hack: pass user by string
+	m.users.lock.Lock()
+	m.users.users[user.ID()] = user
+	m.users.lock.Unlock()
+
 	// Lookup in cache
 	dbuf, _ := json.Marshal(dims)
 	key := CacheMeterKey{
