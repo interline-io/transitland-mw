@@ -78,7 +78,7 @@ func (m *AmberfloMeterProvider) Flush() error {
 	return nil
 }
 
-func (m *AmberfloMeterProvider) getValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims Dimensions) (float64, bool) {
+func (m *AmberfloMeterProvider) GetValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims Dimensions) (float64, bool) {
 	cfg, ok := m.getcfg(meterName)
 	if !ok {
 		return 0, false
@@ -228,7 +228,7 @@ func (m *amberFloMeter) AddDimension(meterName string, key string, value string)
 }
 
 func (m *amberFloMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
-	return m.mp.getValue(m.user, meterName, startTime, endTime, dims)
+	return m.mp.GetValue(m.user, meterName, startTime, endTime, dims)
 }
 
 /////////

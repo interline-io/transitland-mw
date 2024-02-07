@@ -18,6 +18,7 @@ type ApiMeter interface {
 }
 
 type MeterProvider interface {
+	GetValue(MeterUser, string, time.Time, time.Time, Dimensions) (float64, bool)
 	NewMeter(MeterUser) ApiMeter
 	Close() error
 	Flush() error
