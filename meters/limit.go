@@ -131,7 +131,7 @@ func PeriodSpan(period string) (time.Time, time.Time, error) {
 		d1 = time.Unix(0, 0)
 		d2 = time.Unix(1<<63-1, 0)
 	} else {
-		return now, now, errors.New("unknown period")
+		return now, now, fmt.Errorf("unknown period: %s", period)
 	}
 	return d1, d2, nil
 }
