@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/transitland-mw/auth/authn"
 )
 
@@ -18,6 +19,7 @@ type ApiMeter interface {
 }
 
 type MeterProvider interface {
+	GetValue(MeterUser, string, time.Time, time.Time, Dimensions) (float64, bool)
 	NewMeter(MeterUser) ApiMeter
 	Close() error
 	Flush() error
@@ -84,6 +86,7 @@ type Config struct {
 	EnableRateLimits       bool
 	MeteringProvider       string
 	MeteringAmberfloConfig string
+	RedisClient            *redis.Client
 }
 
 func GetProvider(cfg Config) (MeterProvider, error) {
@@ -97,6 +100,17 @@ func GetProvider(cfg Config) (MeterProvider, error) {
 			}
 		}
 		meterProvider = a
+	}
+	if cfg.RedisClient != nil {
+		cacheMp := NewCacheMeterProvider(
+			meterProvider,
+			"cachemeter",
+			cfg.RedisClient,
+			5*time.Minute,
+			1*time.Hour,
+			1*time.Minute,
+		)
+		meterProvider = cacheMp
 	}
 	if cfg.EnableRateLimits {
 		mp := NewLimitMeterProvider(meterProvider)

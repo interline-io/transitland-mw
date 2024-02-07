@@ -83,28 +83,11 @@ type UserMeterLimit struct {
 }
 
 func (lim *UserMeterLimit) Span() (time.Time, time.Time) {
-	now := time.Now().In(time.UTC)
-	d1 := now
-	d2 := now
-	if lim.Period == "hourly" {
-		d1 = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
-		d2 = d1.Add(3600 * time.Second)
-	} else if lim.Period == "daily" {
-		d1 = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(0, 0, 1)
-	} else if lim.Period == "monthly" {
-		d1 = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(0, 1, 0)
-	} else if lim.Period == "yearly" {
-		d1 = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(1, 0, 0)
-	} else if lim.Period == "total" {
-		d1 = time.Unix(0, 0)
-		d2 = time.Unix(1<<63-1, 0)
-	} else {
-		return now, now
+	a, b, err := PeriodSpan(lim.Period)
+	if err != nil {
+		panic(err)
 	}
-	return d1, d2
+	return a, b
 }
 
 func parseGkUserLimits(v string) []UserMeterLimit {
@@ -126,4 +109,29 @@ func parseGkUserLimits(v string) []UserMeterLimit {
 		}
 	}
 	return lims
+}
+
+func PeriodSpan(period string) (time.Time, time.Time, error) {
+	now := time.Now().In(time.UTC)
+	d1 := now
+	d2 := now
+	if period == "hourly" {
+		d1 = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
+		d2 = d1.Add(3600 * time.Second)
+	} else if period == "daily" {
+		d1 = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(0, 0, 1)
+	} else if period == "monthly" {
+		d1 = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(0, 1, 0)
+	} else if period == "yearly" {
+		d1 = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(1, 0, 0)
+	} else if period == "total" {
+		d1 = time.Unix(0, 0)
+		d2 = time.Unix(1<<63-1, 0)
+	} else {
+		return now, now, errors.New("unknown period")
+	}
+	return d1, d2, nil
 }
