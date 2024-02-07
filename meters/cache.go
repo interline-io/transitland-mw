@@ -3,6 +3,7 @@ package meters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -65,7 +66,7 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 		user, ok := up.users[key.User]
 		up.lock.Unlock()
 		if !ok {
-			panic("no user")
+			return CacheMeterData{Value: 0}, errors.New("no user")
 		}
 
 		// Get value
@@ -77,11 +78,6 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 			nil,
 		)
 		log.Info().Str("key", key.User).Float64("value", val).Bool("ok", ok).Msg("rechecking meter result")
-
-		// Clear user
-		up.lock.Lock()
-		delete(up.users, key.User)
-		up.lock.Unlock()
 
 		return CacheMeterData{Value: val}, nil
 	}
