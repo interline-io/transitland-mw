@@ -2,7 +2,6 @@ package meters
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -103,7 +102,6 @@ func GetProvider(cfg Config) (MeterProvider, error) {
 		meterProvider = a
 	}
 	if cfg.RedisClient != nil {
-		fmt.Println("Wrapping in cache")
 		cacheMp := NewCacheMeterProvider(
 			meterProvider,
 			"cachemeter",

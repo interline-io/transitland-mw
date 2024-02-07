@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/rcache"
 )
 
@@ -57,7 +58,7 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 
 	// Refresh function
 	refreshFn := func(ctx context.Context, key CacheMeterKey) (CacheMeterData, error) {
-		fmt.Println("recheck:", key)
+		log.Info().Str("key", key.User).Msg("rechecking meter")
 
 		// Get user
 		up.lock.Lock()
@@ -75,7 +76,7 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 			time.Unix(key.End, 0),
 			nil,
 		)
-		fmt.Println("recheck result:", val, ok)
+		log.Info().Str("key", key.User).Float64("value", val).Bool("ok", ok).Msg("rechecking meter result")
 
 		// Clear user
 		up.lock.Lock()
