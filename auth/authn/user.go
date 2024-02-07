@@ -9,7 +9,6 @@ type CtxUser struct {
 	id           string
 	name         string
 	email        string
-	valid        bool
 	roles        map[string]bool
 	externalData map[string]string
 }
@@ -24,7 +23,6 @@ func newCtxUserWith(id string, name string, email string, roles map[string]bool,
 		id:           id,
 		name:         name,
 		email:        email,
-		valid:        true,
 		roles:        map[string]bool{},
 		externalData: map[string]string{},
 	}
@@ -51,10 +49,6 @@ func (user CtxUser) ID() string {
 
 func (user CtxUser) Email() string {
 	return user.email
-}
-
-func (user CtxUser) IsValid() bool {
-	return user.valid
 }
 
 func (user CtxUser) GetExternalData(eid string) (string, bool) {

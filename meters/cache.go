@@ -44,13 +44,14 @@ type CacheMeterProvider struct {
 func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *redis.Client, recheck time.Duration, expires time.Duration, refresh time.Duration) *CacheMeterProvider {
 	refreshFn := func(ctx context.Context, key CacheMeterKey) (CacheMeterData, error) {
 		fmt.Println("recheck:", key)
-		val, _ := provider.GetValue(
-			&cacheUser{key.User},
+		val, ok := provider.GetValue(
+			nil,
 			key.MeterName,
 			time.Unix(key.Start, 0),
 			time.Unix(key.End, 0),
 			nil,
 		)
+		fmt.Println("recheck result:", val, ok)
 		return CacheMeterData{Value: val}, nil
 	}
 	cache := rcache.NewCache[CacheMeterKey, CacheMeterData](
@@ -76,6 +77,7 @@ func (c *CacheMeterProvider) NewMeter(u MeterUser) ApiMeter {
 }
 
 func (m *CacheMeterProvider) GetValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+	// Lookup in cache
 	dbuf, _ := json.Marshal(dims)
 	key := CacheMeterKey{
 		User:      user.ID(),
@@ -98,15 +100,4 @@ type CacheMeter struct {
 
 func (m *CacheMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
 	return m.provider.GetValue(m.user, meterName, startTime, endTime, dims)
-}
-
-type cacheUser struct {
-	id string
-}
-
-func (c *cacheUser) ID() string {
-	return c.id
-}
-func (*cacheUser) GetExternalData(string) (string, bool) {
-	return "", false
 }

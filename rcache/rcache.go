@@ -108,6 +108,30 @@ func (rc *Cache[K, T]) setTTL(ctx context.Context, key K, value T, ttl1 time.Dur
 	return nil
 }
 
+func (rc *Cache[K, T]) GetRecheckKeys(ctx context.Context) []K {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
+	t := time.Now().In(time.UTC)
+	var ret []K
+	for k, v := range rc.items {
+		// Update?
+		if v.RecheckAt.After(t) {
+			continue
+		}
+		// Refresh local cache from redis
+		if a, ok := rc.getRedis(ctx, k); ok {
+			v = a
+			rc.items[k] = v
+		}
+		// Check again
+		if v.RecheckAt.After(t) {
+			continue
+		}
+		ret = append(ret, k)
+	}
+	return ret
+}
+
 func (rc *Cache[K, T]) Refresh(ctx context.Context, key K) (T, error) {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
@@ -245,28 +269,4 @@ func toString(item any) string {
 		panic(err)
 	}
 	return string(data)
-}
-
-func (rc *Cache[K, T]) GetRecheckKeys(ctx context.Context) []K {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
-	t := time.Now().In(time.UTC)
-	var ret []K
-	for k, v := range rc.items {
-		// Update?
-		if v.RecheckAt.After(t) {
-			continue
-		}
-		// Refresh local cache from redis
-		if a, ok := rc.getRedis(ctx, k); ok {
-			v = a
-			rc.items[k] = v
-		}
-		// Check again
-		if v.RecheckAt.After(t) {
-			continue
-		}
-		ret = append(ret, k)
-	}
-	return ret
 }
