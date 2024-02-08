@@ -12,11 +12,11 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240126000327-05bb90e4de4f
-	github.com/interline-io/transitland-dbutil v0.0.0-20240126000951-f2dcc062261d
+	github.com/interline-io/transitland-dbutil v0.0.0-20240208032536-60954507fd1a
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
-	github.com/rs/zerolog v1.31.0
+	github.com/rs/zerolog v1.32.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.0
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c
@@ -49,7 +49,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
