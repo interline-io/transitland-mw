@@ -167,8 +167,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/interline-io/log v0.0.0-20240126000327-05bb90e4de4f h1:yZuyLK/XJqVOHxAhk50hEK8VeBJPvHCZIdEvCExGl7E=
 github.com/interline-io/log v0.0.0-20240126000327-05bb90e4de4f/go.mod h1:chJaM8SKcHI6ivoeFuZ8M8axTjSV4TPmuQ+sAyAHa34=
-github.com/interline-io/transitland-dbutil v0.0.0-20240208032536-60954507fd1a h1:ZPcW2bOCe3zg8CVBeRtvQFhspIm2VNe26ynjuLxDdOE=
-github.com/interline-io/transitland-dbutil v0.0.0-20240208032536-60954507fd1a/go.mod h1:grGMCBwSF26E/cREWJ9NZlG9FHnCXxEiEPhf7iYUCf0=
+github.com/interline-io/transitland-dbutil v0.0.0-20240216015446-254b5557e812 h1:rS+CGmVMoWoc0C4nma9lsQ44vw47DjPz1aQWKmT3Vbg=
+github.com/interline-io/transitland-dbutil v0.0.0-20240216015446-254b5557e812/go.mod h1:grGMCBwSF26E/cREWJ9NZlG9FHnCXxEiEPhf7iYUCf0=
 github.com/jarcoal/httpmock v1.3.1 h1:iUx3whfZWVf3jT01hQTO/Eo5sAYtB2/rqaUuOtpInww=
 github.com/jarcoal/httpmock v1.3.1/go.mod h1:3yb8rc4BI7TCBhFY8ng0gjuLKJNquuDNiPaZjnENuYg=
 github.com/jehiah/go-strftime v0.0.0-20171201141054-1d33003b3869 h1:IPJ3dvxmJ4uczJe5YQdrYB16oTJlGSC/OyZDqUk9xX4=
