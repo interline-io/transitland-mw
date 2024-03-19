@@ -49,7 +49,7 @@ func TestCache(t *testing.T) {
 
 	t.Run("simple get", func(t *testing.T) {
 		key := testKey()
-		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0, 0)
 		if a, ok := rc.Get(context.Background(), key); ok {
 			assert.Equal(t, key.Key, a.Value)
 		} else {
@@ -62,7 +62,7 @@ func TestCache(t *testing.T) {
 		refreshFn := func(ctx context.Context, key rcTestKey) (rcTestItem, error) {
 			return rcTestItem{key.Key}, errors.New("fail")
 		}
-		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0, 0)
 		if _, ok := rc.Get(context.Background(), key); ok {
 			t.Error("expected failed read")
 		}
@@ -74,7 +74,7 @@ func TestCache(t *testing.T) {
 			time.Sleep(2 * time.Second)
 			return rcTestItem{key.Key}, nil
 		}
-		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0, 0)
 		rc.RefreshTimeout = time.Duration(1 * time.Second)
 		if _, ok := rc.Get(context.Background(), key); ok {
 			t.Error("expected failed read")
@@ -87,7 +87,7 @@ func TestCache(t *testing.T) {
 			time.Sleep(2 * time.Second)
 			return rcTestItem{key.Key}, nil
 		}
-		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](refreshFn, pfx(), redisClient, 0, 0)
 		rc.RefreshTimeout = time.Duration(10 * time.Second)
 		if a, ok := rc.Get(context.Background(), key); ok {
 			assert.Equal(t, key.Key, a.Value)
@@ -98,7 +98,7 @@ func TestCache(t *testing.T) {
 
 	t.Run("check, redis read ok", func(t *testing.T) {
 		key := testKey()
-		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0, 0)
 
 		// Check no value
 		if _, ok := rc.Check(context.Background(), key); ok {
@@ -107,11 +107,7 @@ func TestCache(t *testing.T) {
 
 		// Manually set redis
 		testItem, _ := retKey(context.Background(), key)
-		cacheItem := Item[rcTestItem]{
-			Value:     testItem,
-			ExpiresAt: time.Now().Add(1 * time.Hour),
-		}
-		rc.setRedis(context.Background(), key, cacheItem)
+		rc.setRedis(context.Background(), key, cacheItem[rcTestItem]{Value: testItem})
 
 		// Check again
 		if a, ok := rc.Get(context.Background(), key); ok {
@@ -123,7 +119,7 @@ func TestCache(t *testing.T) {
 
 	t.Run("check, not expired item", func(t *testing.T) {
 		key := testKey()
-		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0)
+		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 0, 0)
 		rc.Expires = 10 * time.Second
 
 		// OK
@@ -146,7 +142,7 @@ func TestCache(t *testing.T) {
 
 	t.Run("check, expired item", func(t *testing.T) {
 		key := testKey()
-		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 1*time.Second)
+		rc := NewCache[rcTestKey, rcTestItem](retKey, pfx(), redisClient, 1*time.Second, 120*time.Second)
 
 		// OK
 		if a, ok := rc.Get(context.Background(), key); ok {
@@ -167,7 +163,7 @@ func TestCache(t *testing.T) {
 	t.Run("recheck", func(t *testing.T) {
 		key := testKey()
 		// Set refresh interval to 1 second
-		rc := NewCache[rcTestKey, rcTestItem](retTime, pfx(), redisClient, 1*time.Second)
+		rc := NewCache[rcTestKey, rcTestItem](retTime, pfx(), redisClient, 1*time.Second, 120*time.Second)
 
 		// OK
 		firstTime := ""

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -18,19 +19,16 @@ import (
 	redis9 "github.com/redis/go-redis/v9"
 )
 
-type TestItem = Item[string]
-
-type Item[T any] struct {
+type cacheItem[T any] struct {
 	Value     T
-	ExpiresAt time.Time
 	RecheckAt time.Time
 }
 
-func (item Item[T]) MarshalBinary() ([]byte, error) {
+func (item cacheItem[T]) MarshalBinary() ([]byte, error) {
 	return json.Marshal(&item)
 }
 
-func (item *Item[T]) UnmarshalBinary(data []byte) error {
+func (item *cacheItem[T]) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, item)
 }
 
@@ -42,28 +40,30 @@ type Cache[K comparable, T any] struct {
 	refreshFn      func(context.Context, K) (T, error)
 	topic          string
 	redisClient    *redis.Client
-	loadCache      *cache.LoadableCache[T]
-	chainCache     *cache.ChainCache[T]
-	localCache     *cache.Cache[T]
-	redisCache     *cache.Cache[T]
-	// items          map[K]Item[T]
-	// lock         sync.Mutex
+	loadCache      *cache.LoadableCache[cacheItem[T]]
+	chainCache     *cache.ChainCache[cacheItem[T]]
+	localCache     *cache.Cache[cacheItem[T]]
+	redisCache     *cache.Cache[cacheItem[T]]
+	lock           sync.Mutex
+	localKeys      map[K]time.Time
 }
 
-func NewCache[K comparable, T any](refreshFn func(context.Context, K) (T, error), keyPrefix string, redisClient *redis.Client, ttl time.Duration) *Cache[K, T] {
+func NewCache[K comparable, T any](refreshFn func(context.Context, K) (T, error), keyPrefix string, redisClient *redis.Client, recheckTtl time.Duration, expiresTtl time.Duration) *Cache[K, T] {
 	// Setup obj
 	rc := Cache[K, T]{
 		refreshFn:      refreshFn,
 		topic:          keyPrefix,
 		redisClient:    redisClient,
-		Expires:        ttl,
+		Recheck:        recheckTtl,
+		Expires:        expiresTtl,
 		RefreshTimeout: 1 * time.Second,
+		localKeys:      map[K]time.Time{},
 	}
 
 	// In memory store
 	gocacheStore := gocache_store.NewGoCache(
 		gocache.New(rc.Expires, 0),
-		store.WithExpiration(rc.Expires),
+		store.WithExpiration(rc.Recheck),
 	)
 
 	// Redis store
@@ -73,45 +73,93 @@ func NewCache[K comparable, T any](refreshFn func(context.Context, K) (T, error)
 	)
 
 	// Setup caches
-	rc.localCache = cache.New[T](gocacheStore)
-	rc.redisCache = cache.New[T](redisStore)
-	rc.chainCache = cache.NewChain[T](rc.localCache, rc.redisCache)
-	loadFn := func(ctx context.Context, akey any) (T, error) {
+	rc.localCache = cache.New[cacheItem[T]](gocacheStore)
+	rc.redisCache = cache.New[cacheItem[T]](redisStore)
+	rc.chainCache = cache.NewChain[cacheItem[T]](rc.localCache, rc.redisCache)
+	loadFn := func(ctx context.Context, akey any) (cacheItem[T], error) {
 		key, ok := akey.(K)
 		if !ok {
 			panic("failed to assert key")
 		}
-		fmt.Println("calling loader:", key)
 		ret, err := rc.Refresh(ctx, key)
-		fmt.Println("\t\tgot:", ret, "err:", err)
-		return ret, err
+		retItem := cacheItem[T]{
+			Value:     ret,
+			RecheckAt: time.Now().Add(rc.Recheck),
+		}
+		return retItem, err
 	}
-	rc.loadCache = cache.NewLoadable[T](loadFn, rc.chainCache)
+	rc.loadCache = cache.NewLoadable[cacheItem[T]](loadFn, rc.chainCache)
+	rc.Start(rc.Recheck)
 	return &rc
 }
 
 func (rc *Cache[K, T]) Start(t time.Duration) {
+	if t <= 0 {
+		return
+	}
+	ticker := time.NewTicker(t)
+	go func() {
+		for t := range ticker.C {
+			_ = t
+			ctx := context.Background()
+			var keys []K
+			var okKeys []K
+			now := time.Now()
+			rc.lock.Lock()
+			for key, recheckAt := range rc.localKeys {
+				if now.After(recheckAt) {
+					keys = append(keys, key)
+				} else {
+					okKeys = append(okKeys, key)
+				}
+			}
+			rc.lock.Unlock()
+			log.Trace().Any("keys", keys).Any("okKeys", okKeys).Msg("auto refresh keys")
+			for _, key := range keys {
+				log.Trace().Str("key", toString(key)).Msg("auto refresh")
+				ret, err := rc.Refresh(ctx, key)
+				if err != nil {
+					log.Error().Str("key", toString(key)).Msg("failed to auto refresh")
+					continue
+				}
+				retItem := cacheItem[T]{Value: ret, RecheckAt: now.Add(rc.Recheck)}
+				rc.chainCache.Set(ctx, key, retItem, store.WithExpiration(rc.Expires))
+				rc.lock.Lock()
+				rc.localKeys[key] = retItem.RecheckAt
+				rc.lock.Unlock()
+			}
+		}
+	}()
 }
 
 func (rc *Cache[K, T]) Check(ctx context.Context, key K) (T, bool) {
 	// Check the chain cache without running loader
+	log.Trace().Str("key", toString(key)).Msg("cache check")
 	a, err := rc.chainCache.Get(ctx, key)
 	if err != nil {
-		return a, false
+		return a.Value, false
 	}
-	return a, true
+	rc.lock.Lock()
+	rc.localKeys[key] = a.RecheckAt
+	rc.lock.Unlock()
+	return a.Value, true
 }
 
 func (rc *Cache[K, T]) Get(ctx context.Context, key K) (T, bool) {
+	log.Trace().Str("key", toString(key)).Msg("cache get")
 	a, err := rc.loadCache.Get(ctx, key)
 	if err != nil {
-		return a, false
+		return a.Value, false
 	}
-	return a, true
+	rc.lock.Lock()
+	rc.localKeys[key] = a.RecheckAt
+	rc.lock.Unlock()
+	return a.Value, true
 }
 
 func (rc *Cache[K, T]) Refresh(ctx context.Context, key K) (T, error) {
 	kstr := toString(key)
+	log.Trace().Str("key", kstr).Msg("cache refresh: start")
 	type rt struct {
 		item T
 		err  error
@@ -131,15 +179,15 @@ func (rc *Cache[K, T]) Refresh(ctx context.Context, key K) (T, error) {
 		item = ret.item
 	}
 	if err != nil {
-		log.Error().Err(err).Str("key", kstr).Msg("refresh: failed to refresh")
+		log.Error().Err(err).Str("key", kstr).Msg("cache refresh: failed to refresh")
 		return item, err
 	}
-	log.Trace().Str("key", kstr).Msg("refresh: ok")
+	log.Trace().Str("key", kstr).Msg("cache refresh: ok")
 	return item, nil
 }
 
-func (rc *Cache[K, T]) setRedis(ctx context.Context, key K, item Item[T]) error {
-	return rc.redisCache.Set(ctx, rc.redisKey(key), item.Value)
+func (rc *Cache[K, T]) setRedis(ctx context.Context, key K, item cacheItem[T]) error {
+	return rc.redisCache.Set(ctx, rc.redisKey(key), item)
 }
 
 func (rc *Cache[K, T]) redisKey(key K) string {

@@ -87,6 +87,8 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 		refreshFn,
 		topic,
 		redisClient,
+		0,
+		0,
 	)
 	cache.Expires = expires
 	cache.Recheck = recheck
