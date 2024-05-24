@@ -21,6 +21,8 @@ import (
 
 // For less typing
 
+const GLOBALADMIN_ROLE = "admin"
+
 type Action = authz.Action
 type ObjectType = authz.ObjectType
 type Relation = authz.Relation
@@ -80,15 +82,14 @@ type CheckerConfig struct {
 	FGAEndpoint       string
 	FGALoadModelFile  string
 	FGALoadTestData   []TupleKey
-	GlobalAdmin       string
 }
 
 type Checker struct {
-	userClient   UserProvider
-	fgaClient    FGAProvider
-	db           sqlx.Ext
-	globalAdmins []string
-	authz.UnsafeCheckerServer
+	userClient UserProvider
+	fgaClient  FGAProvider
+	db         sqlx.Ext
+	authz.UnimplementedWhoamiServer
+	authz.UnimplementedCheckerServer
 }
 
 func NewCheckerFromConfig(cfg CheckerConfig, db sqlx.Ext) (*Checker, error) {
@@ -141,9 +142,6 @@ func NewCheckerFromConfig(cfg CheckerConfig, db sqlx.Ext) (*Checker, error) {
 	}
 
 	checker := NewChecker(userClient, fgaClient, db)
-	if cfg.GlobalAdmin != "" {
-		checker.globalAdmins = append(checker.globalAdmins, cfg.GlobalAdmin)
-	}
 	return checker, nil
 }
 
@@ -192,6 +190,9 @@ func (c *Checker) Me(ctx context.Context, req *authz.MeRequest) (*authz.MeRespon
 		return nil, ErrUnauthorized
 	}
 
+	// Check if we are a global admin
+	globalAdmin := c.checkGlobalAdmin(user)
+
 	// TODO: consider an explicit check to authn provider .GetUser,
 	// however this requires a authn provider to be configured and not just the default.
 
@@ -238,12 +239,9 @@ func (c *Checker) Me(ctx context.Context, req *authz.MeRequest) (*authz.MeRespon
 		Roles:          user.Roles(),
 		ExpandedGroups: expandedGroups,
 		ExternalData:   extData,
+		IsGlobalAdmin:  globalAdmin,
 	}
 	return ret, nil
-}
-
-func (c *Checker) CheckGlobalAdmin(ctx context.Context) (bool, error) {
-	return c.checkGlobalAdmin(authn.ForContext(ctx)), nil
 }
 
 func (c *Checker) hydrateEntityRels(ctx context.Context, ers []*authz.EntityRelation) ([]*authz.EntityRelation, error) {
@@ -454,7 +452,7 @@ func (c *Checker) GroupPermissions(ctx context.Context, req *authz.GroupRequest)
 	ret.Actions.CanEdit, _ = c.checkAction(ctx, CanEdit, entKey)
 	ret.Actions.CanCreateFeed, _ = c.checkAction(ctx, CanCreateFeed, entKey)
 	ret.Actions.CanDeleteFeed, _ = c.checkAction(ctx, CanDeleteFeed, entKey)
-	ret.Actions.CanSetTenant = c.ctxIsGlobalAdmin(ctx)
+	ret.Actions.CanSetTenant, _ = c.checkAction(ctx, CanSetTenant, entKey)
 
 	// Get feeds
 	feedIds, _ := c.listSubjectRelations(ctx, entKey, FeedType, ParentRelation)
@@ -765,11 +763,11 @@ func (c *Checker) listSubjectRelations(ctx context.Context, sub EntityKey, objec
 	return ret, nil
 }
 
-func (c *Checker) getSubjectTuples(ctx context.Context, obj EntityKey, ctxtk ...TupleKey) ([]TupleKey, error) {
-	return c.fgaClient.GetObjectTuples(ctx, authz.NewTupleKey().WithSubject(obj.Type, obj.Name))
-}
+// func (c *Checker) getSubjectTuples(ctx context.Context, obj EntityKey, _ ...TupleKey) ([]TupleKey, error) {
+// 	return c.fgaClient.GetObjectTuples(ctx, authz.NewTupleKey().WithSubject(obj.Type, obj.Name))
+// }
 
-func (c *Checker) getObjectTuples(ctx context.Context, obj EntityKey, ctxtk ...TupleKey) ([]TupleKey, error) {
+func (c *Checker) getObjectTuples(ctx context.Context, obj EntityKey, _ ...TupleKey) ([]TupleKey, error) {
 	return c.fgaClient.GetObjectTuples(ctx, authz.NewTupleKey().WithObject(obj.Type, obj.Name))
 }
 
@@ -791,21 +789,13 @@ func (c *Checker) checkAction(ctx context.Context, checkAction Action, obj Entit
 	}
 	userName := checkUser.ID()
 	if c.checkGlobalAdmin(checkUser) {
-		log.Debug().Str("check_user", userName).Str("obj", obj.String()).Str("check_action", checkAction.String()).Msg("global admin action")
+		log.Trace().Str("check_user", userName).Str("obj", obj.String()).Str("check_action", checkAction.String()).Msg("global admin action")
 		return true, nil
 	}
 	checkTk := authz.NewTupleKey().WithUser(userName).WithObject(obj.Type, obj.Name).WithAction(checkAction)
 	ret, err := c.fgaClient.Check(ctx, checkTk, ctxtk...)
 	log.Trace().Str("tk", checkTk.String()).Bool("result", ret).Err(err).Msg("checkAction")
 	return ret, err
-}
-
-func (c *Checker) ctxIsGlobalAdmin(ctx context.Context) bool {
-	checkUser := authn.ForContext(ctx)
-	if checkUser == nil {
-		return false
-	}
-	return c.checkGlobalAdmin(checkUser)
 }
 
 func (c *Checker) checkGlobalAdmin(checkUser authn.User) bool {
@@ -815,14 +805,8 @@ func (c *Checker) checkGlobalAdmin(checkUser authn.User) bool {
 	if checkUser == nil {
 		return false
 	}
-	if checkUser.HasRole("admin") {
+	if checkUser.HasRole(GLOBALADMIN_ROLE) {
 		return true
-	}
-	userName := checkUser.ID()
-	for _, v := range c.globalAdmins {
-		if v == userName {
-			return true
-		}
 	}
 	return false
 }
