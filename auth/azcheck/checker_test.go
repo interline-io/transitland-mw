@@ -13,6 +13,7 @@ import (
 	"github.com/interline-io/transitland-mw/auth/authn"
 	"github.com/interline-io/transitland-mw/auth/authz"
 	"github.com/interline-io/transitland-mw/testdata"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 )
 

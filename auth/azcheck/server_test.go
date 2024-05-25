@@ -98,7 +98,8 @@ func TestServer(t *testing.T) {
 			{
 				CheckAsUser: "asdf",
 				ExpectKeys:  newEntityKeys(GroupType),
-				ExpectError: true,
+				// ExpectError: true,
+				// used to return an error, but is now returned without auth0 lookup
 			},
 		}
 		for _, tc := range checks {
