@@ -31,7 +31,6 @@ func NewLocalJobs() *LocalJobs {
 		jobs:       make(chan Job, 1000),
 		uniqueJobs: map[string]bool{},
 	}
-	f.middlewares = append(f.middlewares, newLog())
 	return f
 }
 

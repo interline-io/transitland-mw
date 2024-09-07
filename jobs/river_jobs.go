@@ -3,7 +3,6 @@ package jobs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/interline-io/log"
@@ -11,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
+	"github.com/rs/zerolog"
 )
 
 func init() {
@@ -24,76 +25,37 @@ type riverJobArgs struct {
 }
 
 func (r riverJobArgs) Kind() string {
-	return "default"
-}
-
-// func (r riverJobArgs) InsertOpts() river.InsertOpts {
-// 	opts := river.InsertOpts{}
-// 	if r.Job.Queue != "" {
-// 		opts.Queue = r.Job.Queue
-// 	}
-// 	if r.Job.Unique {
-// 		// Unique for 24 hour lock
-// 		// Allow to be rescheduled after completion
-// 		opts.UniqueOpts = river.UniqueOpts{
-// 			ByArgs:   true,
-// 			ByPeriod: 24 * time.Hour,
-// 			ByState:  []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStateRunning, rivertype.JobStateScheduled},
-// 		}
-// 	}
-// 	return opts
-// }
-
-//////////////
-
-type riverWorker struct {
-	getWorker   GetWorker
-	middlewares []JobMiddleware
-	river.WorkerDefaults[riverJobArgs]
-}
-
-func (r *riverWorker) Work(ctx context.Context, outerJob *river.Job[riverJobArgs]) error {
-	fmt.Println("WORK:", outerJob)
-	job := outerJob.Args.Job
-	now := time.Now().In(time.UTC).Unix()
-	if job.JobDeadline > 0 && now > job.JobDeadline {
-		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
-		return nil
-	}
-	runner, err := r.getWorker(job)
-	if err != nil {
-		return river.JobCancel(err)
-	}
-	if runner == nil {
-		return river.JobCancel(errors.New("no job"))
-	}
-	for _, mwf := range r.middlewares {
-		runner = mwf(runner)
-		if runner == nil {
-			return river.JobCancel(errors.New("no job after middleware"))
-		}
-	}
-	if err := runner.Run(context.TODO(), job); err != nil {
-		log.Trace().Err(err).Msg("job failed")
-		return river.JobCancel(err)
-	}
-	return nil
+	return "riverJobArgs"
 }
 
 //////////////
 
 type RiverJobs struct {
 	dbPool       *pgxpool.Pool
+	queueName    string
 	riverWorkers *river.Workers
 	riverClient  *river.Client[pgx.Tx]
 	middlewares  []JobMiddleware
+	log          zerolog.Logger
 }
 
-func NewRiverJobs(dbPool *pgxpool.Pool) (*RiverJobs, error) {
+func NewRiverJobs(dbPool *pgxpool.Pool, queueName string) (*RiverJobs, error) {
 	riverWorkers := river.NewWorkers()
+	riverClient, err := river.NewClient(riverpgxv5.New(dbPool), &river.Config{
+		Queues: map[string]river.QueueConfig{
+			queueName: {MaxWorkers: 100},
+		},
+		Workers: riverWorkers,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &RiverJobs{
 		dbPool:       dbPool,
 		riverWorkers: riverWorkers,
+		riverClient:  riverClient,
+		queueName:    queueName,
+		log:          log.Logger.With().Str("runner", "river").Str("queue", queueName).Logger(),
 	}, nil
 }
 
@@ -101,42 +63,67 @@ func (w *RiverJobs) Use(mwf JobMiddleware) {
 	w.middlewares = append(w.middlewares, mwf)
 }
 
+func (w *RiverJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
+	// fmt.Println("RiverJobs AddWorker")
+	// Use WorkFunc to simplify code as a closure vs. copying pointers
+	river.AddWorker(w.riverWorkers, river.WorkFunc(func(ctx context.Context, outerJob *river.Job[riverJobArgs]) error {
+		job := outerJob.Args.Job
+		now := time.Now().In(time.UTC).Unix()
+		if job.JobDeadline > 0 && now > job.JobDeadline {
+			w.log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
+			return nil
+		}
+		runner, err := getWorker(job)
+		if err != nil {
+			return river.JobCancel(err)
+		}
+		if runner == nil {
+			return river.JobCancel(errors.New("no job"))
+		}
+		for _, mwf := range w.middlewares {
+			runner = mwf(runner)
+			if runner == nil {
+				return river.JobCancel(errors.New("no job after middleware"))
+			}
+		}
+		if err := runner.Run(context.TODO(), job); err != nil {
+			w.log.Trace().Err(err).Msg("job failed")
+			return river.JobCancel(err)
+		}
+		return nil
+	}))
+	return nil
+}
+
 func (w *RiverJobs) AddJob(job Job) error {
-	fmt.Println("ADDJOB")
+	w.log.Info().Interface("job", job).Msg("jobs: adding job")
 	ctx := context.Background()
 	tx, err := w.dbPool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = w.riverClient.InsertTx(ctx, tx, riverJobArgs{Job: job}, nil)
-	if err != nil {
-		panic(err)
+	insertOpts := river.InsertOpts{}
+	insertOpts.Queue = w.queueName
+	if job.Queue != "" {
+		insertOpts.Queue = w.queueName
 	}
-	return err
-}
-
-func (w *RiverJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
-	fmt.Println("ADDWORKER")
-	return river.AddWorkerSafely(w.riverWorkers, &riverWorker{
-		getWorker:   getWorker,
-		middlewares: append([]JobMiddleware{}, w.middlewares...),
-	})
+	if job.Unique {
+		insertOpts.UniqueOpts = river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+			ByState:  []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStateRunning, rivertype.JobStateScheduled},
+		}
+	}
+	if _, err = w.riverClient.InsertTx(ctx, tx, riverJobArgs{Job: job}, &insertOpts); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (w *RiverJobs) Run() error {
-	fmt.Println("RUN")
+	w.log.Info().Msg("jobs: run")
 	ctx := context.Background()
-	riverClient, err := river.NewClient(riverpgxv5.New(w.dbPool), &river.Config{
-		Queues: map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: 100},
-		},
-		Workers: w.riverWorkers,
-	})
-	if err != nil {
-		return err
-	}
-	w.riverClient = riverClient
 	if err := w.riverClient.Start(ctx); err != nil {
 		return err
 	}
@@ -145,7 +132,11 @@ func (w *RiverJobs) Run() error {
 }
 
 func (w *RiverJobs) Stop() error {
-	fmt.Println("STOP")
+	w.log.Info().Msg("jobs: stop")
 	ctx := context.Background()
-	return w.riverClient.Stop(ctx)
+	if err := w.riverClient.Stop(ctx); err != nil {
+		return err
+	}
+	<-w.riverClient.Stopped()
+	return nil
 }
