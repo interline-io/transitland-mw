@@ -11,6 +11,10 @@ import (
 	"github.com/interline-io/log"
 )
 
+func init() {
+	var _ JobQueue = &LocalJobs{}
+}
+
 var jobCounter = uint64(0)
 
 type LocalJobs struct {

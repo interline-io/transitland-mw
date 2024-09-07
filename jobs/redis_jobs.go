@@ -14,6 +14,10 @@ import (
 	"github.com/interline-io/log"
 )
 
+func init() {
+	var _ JobQueue = &RedisJobs{}
+}
+
 // RedisJobs is a simple wrapper around go-workers
 type RedisJobs struct {
 	queuePrefix string
