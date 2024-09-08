@@ -13,12 +13,14 @@ require (
 	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d
 	github.com/interline-io/transitland-dbutil v0.0.0-20240617204844-9e866bced7e0
+	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/riverqueue/river v0.11.4
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.11.4
+	github.com/riverqueue/river/rivertype v0.11.4
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.0
@@ -38,7 +40,6 @@ require (
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgx/v5 v5.6.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jehiah/go-strftime v0.0.0-20171201141054-1d33003b3869 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -53,7 +54,6 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/riverqueue/river/riverdriver v0.11.4 // indirect
 	github.com/riverqueue/river/rivershared v0.11.4 // indirect
-	github.com/riverqueue/river/rivertype v0.11.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
