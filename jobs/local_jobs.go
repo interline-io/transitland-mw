@@ -11,6 +11,10 @@ import (
 	"github.com/interline-io/log"
 )
 
+func init() {
+	var _ JobQueue = &LocalJobs{}
+}
+
 var jobCounter = uint64(0)
 
 type LocalJobs struct {
@@ -27,7 +31,6 @@ func NewLocalJobs() *LocalJobs {
 		jobs:       make(chan Job, 1000),
 		uniqueJobs: map[string]bool{},
 	}
-	f.middlewares = append(f.middlewares, newLog())
 	return f
 }
 
