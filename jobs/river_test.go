@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 func TestRiverJobs(t *testing.T) {
 	// Setup db pool
 	dburl, v, ok := testutil.CheckEnv("TL_TEST_SERVER_DATABASE_URL")
-	fmt.Println("dburl", dburl)
 	if !ok {
 		t.Skipf("no database, set %s", v)
 		return
