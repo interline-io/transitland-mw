@@ -15,7 +15,6 @@ require (
 	github.com/interline-io/transitland-dbutil v0.0.0-20240617204844-9e866bced7e0
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.3.5
-	github.com/lib/pq v1.10.9
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/riverqueue/river v0.11.4
