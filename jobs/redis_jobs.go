@@ -34,7 +34,6 @@ func NewRedisJobs(client *redis.Client, queuePrefix string) *RedisJobs {
 		client:      client,
 		jobMapper:   newJobMapper(),
 	}
-	f.Use(newLog())
 	return &f
 }
 
@@ -48,7 +47,15 @@ func (f *RedisJobs) AddQueue(queue string, count int) error {
 		return err
 	}
 	manager.AddWorker(f.queueName(queue), count, func(msg *workers.Msg) error {
-		return f.processJob(queue, msg)
+		j := msg.Args()
+		job := Job{
+			JobType: msg.Class(),
+			jobId:   msg.Jid(),
+		}
+		job.JobArgs, _ = j.Get("job_args").Map()
+		job.JobDeadline, _ = j.Get("job_deadline").Int64()
+		job.Unique, _ = j.Get("unique").Bool()
+		return f.RunJob(context.Background(), job)
 	})
 	return nil
 }
@@ -58,6 +65,27 @@ func (w *RedisJobs) AddJobType(jobFn JobFn) error {
 }
 
 func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
+	now := time.Now().In(time.UTC).Unix()
+	if job.Unique {
+		// Consider more advanced locking options
+		key, err := job.HexKey()
+		if err != nil {
+			return err
+		}
+		fullKey := fmt.Sprintf("queue:%s:unique:%s", f.queueName(job.Queue), key)
+		logMsg := log.Trace().Str("key", fullKey)
+		defer func() {
+			if result, err := f.client.Del(ctx, fullKey).Result(); err != nil {
+				logMsg.Err(err).Msg("error unlocking job!")
+			} else {
+				logMsg.Int64("result", result).Msg("unique job unlocked")
+			}
+		}()
+	}
+	if job.JobDeadline > 0 && now > job.JobDeadline {
+		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
+		return nil
+	}
 	w, err := f.jobMapper.GetRunner(job.JobType, job.JobArgs)
 	if err != nil {
 		return err
@@ -130,41 +158,6 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 		}, f.client)
 	}
 	return f.manager, err
-}
-
-func (f *RedisJobs) processJob(queueName string, msg *workers.Msg) error {
-	j := msg.Args()
-	job := Job{
-		JobType: msg.Class(),
-		jobId:   msg.Jid(),
-		Queue:   queueName,
-	}
-	job.JobArgs, _ = j.Get("job_args").Map()
-	job.JobDeadline, _ = j.Get("job_deadline").Int64()
-	job.Unique, _ = j.Get("unique").Bool()
-	now := time.Now().In(time.UTC).Unix()
-	ctx := context.Background()
-	if job.Unique {
-		// Consider more advanced locking options
-		key, err := job.HexKey()
-		if err != nil {
-			return err
-		}
-		fullKey := fmt.Sprintf("queue:%s:unique:%s", f.queueName(job.Queue), key)
-		logMsg := log.Trace().Str("key", fullKey)
-		defer func() {
-			if result, err := f.client.Del(ctx, fullKey).Result(); err != nil {
-				logMsg.Err(err).Msg("error unlocking job!")
-			} else {
-				logMsg.Int64("result", result).Msg("unique job unlocked")
-			}
-		}()
-	}
-	if job.JobDeadline > 0 && now > job.JobDeadline {
-		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
-		return nil
-	}
-	return f.RunJob(ctx, job)
 }
 
 func (f *RedisJobs) Run() error {

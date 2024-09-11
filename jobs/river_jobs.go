@@ -65,7 +65,11 @@ func (w *RiverJobs) initClient() error {
 		return err
 	}
 	workFunc := river.WorkFunc(func(ctx context.Context, outerJob *river.Job[riverJobArgs]) error {
-		return w.processJob(ctx, outerJob)
+		err := w.RunJob(ctx, outerJob.Args.Job)
+		if err != nil {
+			return river.JobCancel(err)
+		}
+		return err
 	})
 	err = river.AddWorkerSafely(w.riverWorkers, workFunc)
 	if err != nil {
@@ -126,6 +130,11 @@ func (w *RiverJobs) AddJob(job Job) error {
 }
 
 func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {
+	now := time.Now().In(time.UTC).Unix()
+	if job.JobDeadline > 0 && now > job.JobDeadline {
+		w.log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
+		return nil
+	}
 	runner, err := w.jobMapper.GetRunner(job.JobType, job.JobArgs)
 	if err != nil {
 		return errors.New("no job")
@@ -142,19 +151,6 @@ func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {
 	if err := runner.Run(ctx, job); err != nil {
 		w.log.Trace().Err(err).Msg("job failed")
 		return err
-	}
-	return nil
-}
-
-func (w *RiverJobs) processJob(ctx context.Context, outerJob *river.Job[riverJobArgs]) error {
-	job := outerJob.Args.Job
-	now := time.Now().In(time.UTC).Unix()
-	if job.JobDeadline > 0 && now > job.JobDeadline {
-		w.log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
-		return nil
-	}
-	if err := w.RunJob(ctx, job); err != nil {
-		return river.JobCancel(err)
 	}
 	return nil
 }

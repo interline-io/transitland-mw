@@ -43,7 +43,7 @@ func (f *LocalJobs) Use(mwf JobMiddleware) {
 func (f *LocalJobs) AddQueue(queue string, count int) error {
 	for i := 0; i < count; i++ {
 		f.jobfuncs = append(f.jobfuncs, func(job Job) error {
-			return f.processJob(context.Background(), job)
+			return f.RunJob(context.Background(), job)
 		})
 	}
 	return nil
@@ -78,23 +78,6 @@ func (f *LocalJobs) AddJob(job Job) error {
 }
 
 func (f *LocalJobs) RunJob(ctx context.Context, job Job) error {
-	w, err := f.jobMapper.GetRunner(job.JobType, job.JobArgs)
-	if err != nil {
-		return err
-	}
-	if w == nil {
-		return errors.New("no job")
-	}
-	for _, mwf := range f.middlewares {
-		w = mwf(w)
-		if w == nil {
-			return errors.New("no job")
-		}
-	}
-	return w.Run(ctx, job)
-}
-
-func (f *LocalJobs) processJob(ctx context.Context, job Job) error {
 	job = Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
@@ -117,7 +100,20 @@ func (f *LocalJobs) processJob(ctx context.Context, job Job) error {
 		delete(f.uniqueJobs, key)
 		log.Trace().Interface("job", job).Msgf("unlocked: %s", key)
 	}
-	return f.RunJob(ctx, job)
+	w, err := f.jobMapper.GetRunner(job.JobType, job.JobArgs)
+	if err != nil {
+		return err
+	}
+	if w == nil {
+		return errors.New("no job")
+	}
+	for _, mwf := range f.middlewares {
+		w = mwf(w)
+		if w == nil {
+			return errors.New("no job")
+		}
+	}
+	return w.Run(ctx, job)
 }
 
 func (f *LocalJobs) Run() error {
