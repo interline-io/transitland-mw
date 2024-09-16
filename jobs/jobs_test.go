@@ -42,7 +42,19 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		tName := strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
 		return fmt.Sprintf("%s-%d-%d", tName, os.Getpid(), time.Now().UnixNano())
 	}
-	sleepyTime := 6 * time.Second
+	sleepyTime := 3 * time.Second
+	t.Run("run", func(t *testing.T) {
+		rtJobs := newQueue(queueName(t))
+		count := int64(0)
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testRun"} }))
+		ctx := context.Background()
+		for _, feed := range feeds {
+			if err := rtJobs.RunJob(ctx, Job{JobType: "testRun", JobArgs: JobArgs{"feed_id": feed}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		assert.Equal(t, len(feeds), int(count))
+	})
 	t.Run("simple", func(t *testing.T) {
 		// Ugly :(
 		rtJobs := newQueue(queueName(t))
@@ -57,25 +69,6 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 			}
 		}
 		// Run
-		go func() {
-			time.Sleep(sleepyTime)
-			rtJobs.Stop()
-		}()
-		if err := rtJobs.Run(); err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, len(feeds), int(count))
-	})
-	t.Run("run", func(t *testing.T) {
-		rtJobs := newQueue(queueName(t))
-		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testRun"} }))
-		ctx := context.Background()
-		for _, feed := range feeds {
-			if err := rtJobs.RunJob(ctx, Job{JobType: "testRun", JobArgs: JobArgs{"feed_id": feed}}); err != nil {
-				t.Fatal(err)
-			}
-		}
 		go func() {
 			time.Sleep(sleepyTime)
 			rtJobs.Stop()
@@ -116,7 +109,9 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 			time.Sleep(sleepyTime)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		if err := rtJobs.Run(); err != nil {
+			t.Fatal(err)
+		}
 		assert.Equal(t, int64(104), count)
 	})
 	t.Run("deadline", func(t *testing.T) {
@@ -133,7 +128,9 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 			time.Sleep(sleepyTime)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		if err := rtJobs.Run(); err != nil {
+			t.Fatal(err)
+		}
 		assert.Equal(t, int64(2), count)
 	})
 	t.Run("middleware", func(t *testing.T) {
@@ -156,7 +153,9 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 			time.Sleep(sleepyTime)
 			rtJobs.Stop()
 		}()
-		rtJobs.Run()
+		if err := rtJobs.Run(); err != nil {
+			t.Fatal(err)
+		}
 		assert.Equal(t, int64(2), count)
 		assert.Equal(t, int64(2*10), jwCount)
 	})

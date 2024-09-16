@@ -33,7 +33,7 @@ func TestRiverJobs(t *testing.T) {
 			panic(err)
 		}
 		q.Use(newLog())
-		q.AddQueue("default", 4)
+		q.AddQueue("default", 8)
 		return q
 	}
 	testJobQueue(t, newQueue)
