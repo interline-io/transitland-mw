@@ -16,6 +16,7 @@ func TestRedisJobs(t *testing.T) {
 	newQueue := func(prefix string) JobQueue {
 		q := NewRedisJobs(client, prefix)
 		q.Use(newLog())
+		q.AddQueue("default", 4)
 		return q
 	}
 	testJobQueue(t, newQueue)

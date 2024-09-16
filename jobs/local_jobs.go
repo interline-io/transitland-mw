@@ -24,18 +24,33 @@ type LocalJobs struct {
 	middlewares    []JobMiddleware
 	uniqueJobs     map[string]bool
 	uniqueJobsLock sync.Mutex
+	jobMapper      *jobMapper
 }
 
 func NewLocalJobs() *LocalJobs {
 	f := &LocalJobs{
 		jobs:       make(chan Job, 1000),
 		uniqueJobs: map[string]bool{},
+		jobMapper:  newJobMapper(),
 	}
 	return f
 }
 
 func (f *LocalJobs) Use(mwf JobMiddleware) {
 	f.middlewares = append(f.middlewares, mwf)
+}
+
+func (f *LocalJobs) AddQueue(queue string, count int) error {
+	for i := 0; i < count; i++ {
+		f.jobfuncs = append(f.jobfuncs, func(job Job) error {
+			return f.RunJob(context.Background(), job)
+		})
+	}
+	return nil
+}
+
+func (f *LocalJobs) AddJobType(jobFn JobFn) error {
+	return f.jobMapper.AddJobType(jobFn)
 }
 
 func (f *LocalJobs) AddJob(job Job) error {
@@ -62,7 +77,7 @@ func (f *LocalJobs) AddJob(job Job) error {
 	return nil
 }
 
-func (f *LocalJobs) processMessage(getWorker GetWorker, job Job) error {
+func (f *LocalJobs) RunJob(ctx context.Context, job Job) error {
 	job = Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
@@ -85,7 +100,7 @@ func (f *LocalJobs) processMessage(getWorker GetWorker, job Job) error {
 		delete(f.uniqueJobs, key)
 		log.Trace().Interface("job", job).Msgf("unlocked: %s", key)
 	}
-	w, err := getWorker(job)
+	w, err := f.jobMapper.GetRunner(job.JobType, job.JobArgs)
 	if err != nil {
 		return err
 	}
@@ -98,21 +113,7 @@ func (f *LocalJobs) processMessage(getWorker GetWorker, job Job) error {
 			return errors.New("no job")
 		}
 	}
-	return w.Run(context.TODO(), job)
-}
-
-func (f *LocalJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
-	if f.running {
-		return errors.New("already running")
-	}
-	processMessage := func(job Job) error {
-		return f.processMessage(getWorker, job)
-	}
-	log.Infof("jobs: created job listener")
-	for i := 0; i < count; i++ {
-		f.jobfuncs = append(f.jobfuncs, processMessage)
-	}
-	return nil
+	return w.Run(ctx, job)
 }
 
 func (f *LocalJobs) Run() error {

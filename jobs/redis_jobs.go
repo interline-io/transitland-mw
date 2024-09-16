@@ -24,6 +24,7 @@ type RedisJobs struct {
 	producer    *workers.Producer
 	manager     *workers.Manager
 	client      *redis.Client
+	jobMapper   *jobMapper
 	middlewares []JobMiddleware
 }
 
@@ -31,20 +32,77 @@ func NewRedisJobs(client *redis.Client, queuePrefix string) *RedisJobs {
 	f := RedisJobs{
 		queuePrefix: queuePrefix,
 		client:      client,
+		jobMapper:   newJobMapper(),
 	}
-	f.Use(newLog())
 	return &f
-}
-
-type redisJob struct {
-	JobType     string  `json:"job_type"`
-	JobArgs     JobArgs `json:"job_args"`
-	JobDeadline int64   `json:"job_deadline"`
-	Unique      bool    `json:"unique"`
 }
 
 func (f *RedisJobs) Use(mwf JobMiddleware) {
 	f.middlewares = append(f.middlewares, mwf)
+}
+
+func (f *RedisJobs) AddQueue(queue string, count int) error {
+	manager, err := f.getManager()
+	if err != nil {
+		return err
+	}
+	manager.AddWorker(f.queueName(queue), count, func(msg *workers.Msg) error {
+		j := msg.Args()
+		job := Job{
+			JobType: msg.Class(),
+			jobId:   msg.Jid(),
+		}
+		job.JobArgs, _ = j.Get("job_args").Map()
+		job.JobDeadline, _ = j.Get("job_deadline").Int64()
+		job.Unique, _ = j.Get("unique").Bool()
+		return f.RunJob(context.Background(), job)
+	})
+	return nil
+}
+
+func (w *RedisJobs) AddJobType(jobFn JobFn) error {
+	return w.jobMapper.AddJobType(jobFn)
+}
+
+func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
+	now := time.Now().In(time.UTC).Unix()
+	if job.Unique {
+		// Consider more advanced locking options
+		key, err := job.HexKey()
+		if err != nil {
+			return err
+		}
+		fullKey := fmt.Sprintf("queue:%s:unique:%s", f.queueName(job.Queue), key)
+		logMsg := log.Trace().Str("key", fullKey)
+		defer func() {
+			if result, err := f.client.Del(ctx, fullKey).Result(); err != nil {
+				logMsg.Err(err).Msg("error unlocking job!")
+			} else {
+				logMsg.Int64("result", result).Msg("unique job unlocked")
+			}
+		}()
+	}
+	if job.JobDeadline > 0 && now > job.JobDeadline {
+		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
+		return nil
+	}
+	w, err := f.jobMapper.GetRunner(job.JobType, job.JobArgs)
+	if err != nil {
+		return err
+	}
+	if w == nil {
+		return errors.New("no job")
+	}
+	for _, mwf := range f.middlewares {
+		w = mwf(w)
+		if w == nil {
+			return errors.New("no job")
+		}
+	}
+	if err := w.Run(ctx, job); err != nil {
+		log.Trace().Err(err).Msg("job failed")
+	}
+	return nil
 }
 
 func (f *RedisJobs) AddJob(job Job) error {
@@ -75,7 +133,7 @@ func (f *RedisJobs) AddJob(job Job) error {
 			logMsg.Msg("unique job locked")
 		}
 	}
-	rjob := redisJob{
+	rjob := Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
 		Unique:      job.Unique,
@@ -100,72 +158,6 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 		}, f.client)
 	}
 	return f.manager, err
-}
-
-func (f *RedisJobs) processMessage(queueName string, getWorker GetWorker, msg *workers.Msg) error {
-	j := msg.Args()
-	job := Job{
-		JobType: msg.Class(),
-		jobId:   msg.Jid(),
-		Queue:   queueName,
-	}
-	job.JobArgs, _ = j.Get("job_args").Map()
-	job.JobDeadline, _ = j.Get("job_deadline").Int64()
-	job.Unique, _ = j.Get("unique").Bool()
-	now := time.Now().In(time.UTC).Unix()
-	if job.Unique {
-		// Consider more advanced locking options
-		key, err := job.HexKey()
-		if err != nil {
-			return err
-		}
-		fullKey := fmt.Sprintf("queue:%s:unique:%s", f.queueName(job.Queue), key)
-		ctx := context.Background()
-		logMsg := log.Trace().Str("key", fullKey)
-		defer func() {
-			if result, err := f.client.Del(ctx, fullKey).Result(); err != nil {
-				logMsg.Err(err).Msg("error unlocking job!")
-			} else {
-				logMsg.Int64("result", result).Msg("unique job unlocked")
-			}
-		}()
-	}
-	if job.JobDeadline > 0 && now > job.JobDeadline {
-		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
-		return nil
-	}
-	w, err := getWorker(job)
-	if err != nil {
-		return err
-	}
-	if w == nil {
-		return errors.New("no job")
-	}
-	for _, mwf := range f.middlewares {
-		w = mwf(w)
-		if w == nil {
-			return errors.New("no job")
-		}
-	}
-	if err := w.Run(context.TODO(), job); err != nil {
-		log.Trace().Err(err).Msg("job failed")
-	}
-	return nil
-}
-
-func (f *RedisJobs) AddWorker(queue string, getWorker GetWorker, count int) error {
-	manager, err := f.getManager()
-	if err != nil {
-		return err
-	}
-	processMessage := func(msg *workers.Msg) error {
-		return f.processMessage(queue, getWorker, msg)
-	}
-	if queue == "" {
-		queue = "default"
-	}
-	manager.AddWorker(f.queueName(queue), count, processMessage)
-	return nil
 }
 
 func (f *RedisJobs) Run() error {

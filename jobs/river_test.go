@@ -27,12 +27,13 @@ func TestRiverJobs(t *testing.T) {
 	}
 	defer dbPool.Close()
 
-	newQueue := func(queueName string) JobQueue {
-		q, err := NewRiverJobs(dbPool, queueName)
+	newQueue := func(queuePrefix string) JobQueue {
+		q, err := NewRiverJobs(dbPool, queuePrefix)
 		if err != nil {
 			panic(err)
 		}
 		q.Use(newLog())
+		q.AddQueue("default", 8)
 		return q
 	}
 	testJobQueue(t, newQueue)

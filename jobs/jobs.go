@@ -5,14 +5,17 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 )
 
 type JobArgs map[string]any
 
 // Job queue
 type JobQueue interface {
+	AddQueue(string, int) error
+	AddJobType(JobFn) error
 	AddJob(Job) error
-	AddWorker(string, GetWorker, int) error
+	RunJob(context.Context, Job) error
 	Use(JobMiddleware)
 	Run() error
 	Stop() error
@@ -37,12 +40,44 @@ func (job *Job) HexKey() (string, error) {
 	return job.JobType + ":" + hex.EncodeToString(sum[:]), nil
 }
 
-// GetWorker returns a new worker for this job type
-type GetWorker func(Job) (JobWorker, error)
-
 // JobWorker defines a job worker
 type JobWorker interface {
+	Kind() string
 	Run(context.Context, Job) error
 }
 
+type JobFn func() JobWorker
+
 type JobMiddleware func(JobWorker) JobWorker
+
+///////////
+
+type jobMapper struct {
+	jobFns map[string]JobFn
+}
+
+func newJobMapper() *jobMapper {
+	return &jobMapper{jobFns: map[string]JobFn{}}
+}
+
+func (j *jobMapper) AddJobType(jobFn JobFn) error {
+	jw := jobFn()
+	j.jobFns[jw.Kind()] = jobFn
+	return nil
+}
+
+func (j *jobMapper) GetRunner(jobType string, jobArgs JobArgs) (JobWorker, error) {
+	jobFn, ok := j.jobFns[jobType]
+	if !ok {
+		return nil, errors.New("unknown job type")
+	}
+	runner := jobFn()
+	jw, err := json.Marshal(jobArgs)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(jw, runner); err != nil {
+		return nil, err
+	}
+	return runner, nil
+}
