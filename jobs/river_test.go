@@ -18,7 +18,6 @@ func TestRiverJobs(t *testing.T) {
 	}
 
 	// MustOpenTestDB
-
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
 	defer cancelFunc()
 	dbPool, err := pgxpool.New(ctx, dburl)

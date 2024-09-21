@@ -26,6 +26,7 @@ type RedisJobs struct {
 	client      *redis.Client
 	jobMapper   *jobMapper
 	middlewares []JobMiddleware
+	cancel      context.CancelFunc
 }
 
 func NewRedisJobs(client *redis.Client, queuePrefix string) *RedisJobs {
@@ -55,7 +56,8 @@ func (f *RedisJobs) AddQueue(queue string, count int) error {
 		job.JobArgs, _ = j.Get("job_args").Map()
 		job.JobDeadline, _ = j.Get("job_deadline").Int64()
 		job.Unique, _ = j.Get("unique").Bool()
-		return f.RunJob(context.Background(), job)
+		ctx := context.Background()
+		return f.RunJob(ctx, job)
 	})
 	return nil
 }
@@ -105,7 +107,7 @@ func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
 	return nil
 }
 
-func (f *RedisJobs) AddJob(job Job) error {
+func (f *RedisJobs) AddJob(ctx context.Context, job Job) error {
 	if f.producer == nil {
 		var err error
 		f.producer, err = workers.NewProducerWithRedisClient(workers.Options{
@@ -126,7 +128,7 @@ func (f *RedisJobs) AddJob(job Job) error {
 			deadlineTtl = time.Duration(sec) * time.Second
 		}
 		logMsg := log.Trace().Interface("job", job).Str("key", fullKey).Float64("ttl", deadlineTtl.Seconds())
-		if !f.client.SetNX(context.Background(), fullKey, "unique", deadlineTtl).Val() {
+		if !f.client.SetNX(ctx, fullKey, "unique", deadlineTtl).Val() {
 			logMsg.Msg("unique job already locked")
 			return nil
 		} else {
@@ -147,7 +149,7 @@ func (f *RedisJobs) queueName(q string) string {
 	if q == "" {
 		q = "default"
 	}
-	return f.queuePrefix + q
+	return fmt.Sprintf("%s:%s", f.queuePrefix, q)
 }
 
 func (f *RedisJobs) getManager() (*workers.Manager, error) {
@@ -160,21 +162,24 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 	return f.manager, err
 }
 
-func (f *RedisJobs) Run() error {
+func (f *RedisJobs) Run(ctx context.Context) error {
 	log.Infof("jobs: running")
+	ctx, f.cancel = context.WithCancel(ctx)
 	manager, err := f.getManager()
 	if err == nil {
 		// Blocks
-		manager.Run()
+		go func() { manager.Run() }()
 	}
+	<-ctx.Done()
 	return err
 }
 
-func (f *RedisJobs) Stop() error {
+func (f *RedisJobs) Stop(ctx context.Context) error {
 	log.Infof("jobs: stopping")
 	manager, err := f.getManager()
 	if err == nil {
 		manager.Stop()
 	}
+	f.cancel()
 	return err
 }

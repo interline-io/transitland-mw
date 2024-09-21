@@ -12,13 +12,13 @@ type JobArgs map[string]any
 
 // Job queue
 type JobQueue interface {
+	Use(JobMiddleware)
 	AddQueue(string, int) error
 	AddJobType(JobFn) error
-	AddJob(Job) error
+	AddJob(context.Context, Job) error
 	RunJob(context.Context, Job) error
-	Use(JobMiddleware)
-	Run() error
-	Stop() error
+	Run(context.Context) error
+	Stop(context.Context) error
 }
 
 // Job defines a single job
