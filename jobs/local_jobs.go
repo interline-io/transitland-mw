@@ -19,12 +19,13 @@ var jobCounter = uint64(0)
 
 type LocalJobs struct {
 	jobs           chan Job
-	jobfuncs       []func(Job) error
+	jobfuncs       []func(context.Context, Job) error
 	running        bool
 	middlewares    []JobMiddleware
 	uniqueJobs     map[string]bool
 	uniqueJobsLock sync.Mutex
 	jobMapper      *jobMapper
+	cancel         context.CancelFunc
 }
 
 func NewLocalJobs() *LocalJobs {
@@ -42,9 +43,7 @@ func (f *LocalJobs) Use(mwf JobMiddleware) {
 
 func (f *LocalJobs) AddQueue(queue string, count int) error {
 	for i := 0; i < count; i++ {
-		f.jobfuncs = append(f.jobfuncs, func(job Job) error {
-			return f.RunJob(context.Background(), job)
-		})
+		f.jobfuncs = append(f.jobfuncs, f.RunJob)
 	}
 	return nil
 }
@@ -53,7 +52,7 @@ func (f *LocalJobs) AddJobType(jobFn JobFn) error {
 	return f.jobMapper.AddJobType(jobFn)
 }
 
-func (f *LocalJobs) AddJob(job Job) error {
+func (f *LocalJobs) AddJob(ctx context.Context, job Job) error {
 	if f.jobs == nil {
 		return errors.New("closed")
 	}
@@ -116,34 +115,33 @@ func (f *LocalJobs) RunJob(ctx context.Context, job Job) error {
 	return w.Run(ctx, job)
 }
 
-func (f *LocalJobs) Run() error {
+func (f *LocalJobs) Run(ctx context.Context) error {
 	if f.running {
 		return errors.New("already running")
 	}
+	ctx, f.cancel = context.WithCancel(ctx)
 	log.Infof("jobs: running")
 	f.running = true
-	var wg sync.WaitGroup
 	for _, jobfunc := range f.jobfuncs {
-		wg.Add(1)
-		go func(jf func(Job) error, w *sync.WaitGroup) {
+		go func(jf func(context.Context, Job) error) {
 			for job := range f.jobs {
-				if err := jf(job); err != nil {
+				if err := jf(ctx, job); err != nil {
 					log.Trace().Err(err).Msg("job failed")
 				}
 			}
-			wg.Done()
-		}(jobfunc, &wg)
+		}(jobfunc)
 	}
-	wg.Wait()
+	<-ctx.Done()
 	return nil
 }
 
-func (f *LocalJobs) Stop() error {
+func (f *LocalJobs) Stop(ctx context.Context) error {
 	if !f.running {
 		return errors.New("not running")
 	}
 	log.Infof("jobs: stopping")
 	close(f.jobs)
+	f.cancel()
 	f.running = false
 	f.jobs = nil
 	return nil

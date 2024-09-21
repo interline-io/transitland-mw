@@ -106,9 +106,8 @@ func (w *RiverJobs) queueName(queue string) string {
 	return queue
 }
 
-func (w *RiverJobs) AddJob(job Job) error {
+func (w *RiverJobs) AddJob(ctx context.Context, job Job) error {
 	w.log.Info().Interface("job", job).Msg("jobs: adding job")
-	ctx := context.Background()
 	tx, err := w.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -155,9 +154,8 @@ func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {
 	return nil
 }
 
-func (w *RiverJobs) Run() error {
+func (w *RiverJobs) Run(ctx context.Context) error {
 	w.log.Info().Msg("jobs: run")
-	ctx := context.Background()
 	if err := w.riverClient.Start(ctx); err != nil {
 		return err
 	}
@@ -165,9 +163,8 @@ func (w *RiverJobs) Run() error {
 	return nil
 }
 
-func (w *RiverJobs) Stop() error {
+func (w *RiverJobs) Stop(ctx context.Context) error {
 	w.log.Info().Msg("jobs: stop")
-	ctx := context.Background()
 	if err := w.riverClient.Stop(ctx); err != nil {
 		return err
 	}
