@@ -27,6 +27,7 @@ type RedisJobs struct {
 	jobMapper   *jobMapper
 	middlewares []JobMiddleware
 	cancel      context.CancelFunc
+	ctx         context.Context
 }
 
 func NewRedisJobs(client *redis.Client, queuePrefix string) *RedisJobs {
@@ -56,8 +57,7 @@ func (f *RedisJobs) AddQueue(queue string, count int) error {
 		job.JobArgs, _ = j.Get("job_args").Map()
 		job.JobDeadline, _ = j.Get("job_deadline").Int64()
 		job.Unique, _ = j.Get("unique").Bool()
-		ctx := context.Background()
-		return f.RunJob(ctx, job)
+		return f.RunJob(f.ctx, job)
 	})
 	return nil
 }
@@ -164,13 +164,13 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 
 func (f *RedisJobs) Run(ctx context.Context) error {
 	log.Infof("jobs: running")
-	ctx, f.cancel = context.WithCancel(ctx)
+	f.ctx, f.cancel = context.WithCancel(ctx)
 	manager, err := f.getManager()
 	if err == nil {
 		// Blocks
 		go func() { manager.Run() }()
 	}
-	<-ctx.Done()
+	<-f.ctx.Done()
 	return err
 }
 

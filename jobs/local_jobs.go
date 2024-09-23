@@ -25,6 +25,7 @@ type LocalJobs struct {
 	uniqueJobs     map[string]bool
 	uniqueJobsLock sync.Mutex
 	jobMapper      *jobMapper
+	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
@@ -119,7 +120,7 @@ func (f *LocalJobs) Run(ctx context.Context) error {
 	if f.running {
 		return errors.New("already running")
 	}
-	ctx, f.cancel = context.WithCancel(ctx)
+	f.ctx, f.cancel = context.WithCancel(ctx)
 	log.Infof("jobs: running")
 	f.running = true
 	for _, jobfunc := range f.jobfuncs {
@@ -131,7 +132,7 @@ func (f *LocalJobs) Run(ctx context.Context) error {
 			}
 		}(jobfunc)
 	}
-	<-ctx.Done()
+	<-f.ctx.Done()
 	return nil
 }
 
