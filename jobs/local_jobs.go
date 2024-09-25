@@ -53,6 +53,16 @@ func (f *LocalJobs) AddJobType(jobFn JobFn) error {
 	return f.jobMapper.AddJobType(jobFn)
 }
 
+func (f *LocalJobs) AddJobs(ctx context.Context, jobs []Job) error {
+	for _, job := range jobs {
+		err := f.AddJob(ctx, job)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *LocalJobs) AddJob(ctx context.Context, job Job) error {
 	if f.jobs == nil {
 		return errors.New("closed")

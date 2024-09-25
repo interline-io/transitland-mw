@@ -16,6 +16,7 @@ type JobQueue interface {
 	AddQueue(string, int) error
 	AddJobType(JobFn) error
 	AddJob(context.Context, Job) error
+	AddJobs(context.Context, []Job) error
 	RunJob(context.Context, Job) error
 	Run(context.Context) error
 	Stop(context.Context) error

@@ -107,6 +107,16 @@ func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
 	return nil
 }
 
+func (f *RedisJobs) AddJobs(ctx context.Context, jobs []Job) error {
+	for _, job := range jobs {
+		err := f.AddJob(ctx, job)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *RedisJobs) AddJob(ctx context.Context, job Job) error {
 	if f.producer == nil {
 		var err error
