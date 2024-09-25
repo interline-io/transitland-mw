@@ -51,6 +51,10 @@ func NewRiverJobs(pool *pgxpool.Pool, queuePrefix string) (*RiverJobs, error) {
 	return w, w.initClient()
 }
 
+func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
+	return w.riverClient
+}
+
 func (w *RiverJobs) initClient() error {
 	var err error
 	defaultQueue := w.queueName("default")
