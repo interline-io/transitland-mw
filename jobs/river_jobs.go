@@ -110,26 +110,42 @@ func (w *RiverJobs) queueName(queue string) string {
 	return queue
 }
 
-func (w *RiverJobs) AddJob(ctx context.Context, job Job) error {
-	w.log.Info().Interface("job", job).Msg("jobs: adding job")
+func (w *RiverJobs) AddJobs(ctx context.Context, jobs []Job) error {
 	tx, err := w.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	insertOpts := river.InsertOpts{}
-	insertOpts.Queue = w.queueName(job.Queue)
-	if job.Unique {
-		insertOpts.UniqueOpts = river.UniqueOpts{
-			ByArgs:   true,
-			ByPeriod: 24 * time.Hour,
-			ByState:  []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStateRunning, rivertype.JobStateScheduled},
+	var rparams []river.InsertManyParams
+	for _, job := range jobs {
+		insertOpts := river.InsertOpts{}
+		insertOpts.Queue = w.queueName(job.Queue)
+		if job.Unique {
+			insertOpts.UniqueOpts = river.UniqueOpts{
+				ByArgs:   true,
+				ByPeriod: 24 * time.Hour,
+				ByState: []rivertype.JobState{
+					rivertype.JobStateAvailable,
+					rivertype.JobStatePending,
+					rivertype.JobStateRunning,
+					rivertype.JobStateRetryable,
+					rivertype.JobStateScheduled,
+				},
+			}
 		}
+		rparams = append(rparams, river.InsertManyParams{
+			Args:       riverJobArgs{Job: job},
+			InsertOpts: &insertOpts,
+		})
 	}
-	if _, err = w.riverClient.InsertTx(ctx, tx, riverJobArgs{Job: job}, &insertOpts); err != nil {
+	if _, err = w.riverClient.InsertManyTx(ctx, tx, rparams); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (w *RiverJobs) AddJob(ctx context.Context, job Job) error {
+	return w.AddJobs(ctx, []Job{job})
 }
 
 func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {

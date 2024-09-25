@@ -78,6 +78,29 @@ func testJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		}
 		assert.Equal(t, len(feeds), int(count))
 	})
+	t.Run("AddJobs", func(t *testing.T) {
+		// Abuse the job queue
+		rtJobs := newQueue(queueName(t))
+		// Add workers
+		count := int64(0)
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testAddJobs"} }))
+		// Add jobs
+		var jobs []Job
+		for i := 0; i < 10; i++ {
+			// 1 job: j=0
+			jobs = append(jobs, Job{JobType: "testAddJobs", JobArgs: JobArgs{"test": fmt.Sprintf("n:%d", i)}})
+		}
+		// Run
+		checkErr(t, rtJobs.AddJobs(ctx, jobs))
+		go func() {
+			time.Sleep(sleepyTime)
+			rtJobs.Stop(ctx)
+		}()
+		if err := rtJobs.Run(ctx); err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, int64(10), count)
+	})
 	t.Run("unique", func(t *testing.T) {
 		// Abuse the job queue
 		rtJobs := newQueue(queueName(t))

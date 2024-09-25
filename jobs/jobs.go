@@ -16,6 +16,7 @@ type JobQueue interface {
 	AddQueue(string, int) error
 	AddJobType(JobFn) error
 	AddJob(context.Context, Job) error
+	AddJobs(context.Context, []Job) error
 	RunJob(context.Context, Job) error
 	Run(context.Context) error
 	Stop(context.Context) error
@@ -24,8 +25,8 @@ type JobQueue interface {
 // Job defines a single job
 type Job struct {
 	Queue       string  `json:"queue"`
-	JobType     string  `json:"job_type"`
-	JobArgs     JobArgs `json:"job_args"`
+	JobType     string  `json:"job_type" river:"unique"`
+	JobArgs     JobArgs `json:"job_args" river:"unique"`
 	Unique      bool    `json:"unique"`
 	JobDeadline int64   `json:"job_deadline"`
 	jobId       string  `json:"-"`
