@@ -6,7 +6,7 @@ import (
 	"github.com/interline-io/transitland-mw/internal/metertest"
 )
 
-func TestDefaultMeter(t *testing.T) {
+func TestLocalMeter(t *testing.T) {
 	mp := NewLocalMeterProvider()
 	testConfig := metertest.Config{
 		TestMeter1: "test1",

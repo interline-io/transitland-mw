@@ -11,28 +11,28 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type PromMetrics struct {
+type PromMetric struct {
 	buckets  []float64
 	registry *prometheus.Registry
 }
 
-func NewPromMetrics() *PromMetrics {
+func NewPromMetric() *PromMetric {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
-	return &PromMetrics{
+	return &PromMetric{
 		registry: registry,
 		buckets:  nil,
 	}
 }
 
-func (m *PromMetrics) MetricsHandler() http.Handler {
+func (m *PromMetric) MetricsHandler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{})
 }
 
-func (m *PromMetrics) NewJobMetric(queue string) metrics.JobMetric {
+func (m *PromMetric) NewJobMetric(queue string) metrics.JobMetric {
 	reg := m.registry
 	jobsTotal := promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
@@ -59,7 +59,7 @@ func (m *PromMetrics) NewJobMetric(queue string) metrics.JobMetric {
 	}
 }
 
-func (m *PromMetrics) NewApiMetric(handlerName string) metrics.ApiMetric {
+func (m *PromMetric) NewApiMetric(handlerName string) metrics.ApiMetric {
 	reg := prometheus.WrapRegistererWith(prometheus.Labels{"handler": handlerName}, m.registry)
 	requestsTotal := promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
@@ -89,7 +89,7 @@ func (m *PromMetrics) NewApiMetric(handlerName string) metrics.ApiMetric {
 		},
 		[]string{"method", "code"},
 	)
-	return &promApiMetrics{
+	return &promApiMetric{
 		requestsTotal:   requestsTotal,
 		requestDuration: requestDuration,
 		requestSize:     requestSize,
@@ -115,14 +115,14 @@ func (m *promJobMetrics) AddCompletedJob(queueName string, jobType string, succe
 	m.jobsFailed.With(prometheus.Labels{"queue": queueName, "class": jobType}).Add(1)
 }
 
-type promApiMetrics struct {
+type promApiMetric struct {
 	requestsTotal   *prometheus.CounterVec
 	requestDuration *prometheus.HistogramVec
 	requestSize     *prometheus.SummaryVec
 	responseSize    *prometheus.SummaryVec
 }
 
-func (m *promApiMetrics) AddResponse(method string, responseCode int, requestSize int64, responseSize int64, responseTime float64) {
+func (m *promApiMetric) AddResponse(method string, responseCode int, requestSize int64, responseSize int64, responseTime float64) {
 	label := prometheus.Labels{"method": method, "code": strconv.Itoa(responseCode)}
 	m.requestsTotal.With(label).Add(1)
 	m.requestSize.With(label).Observe(float64(requestSize))
