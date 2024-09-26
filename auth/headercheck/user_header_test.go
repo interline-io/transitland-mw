@@ -1,4 +1,4 @@
-package ancheck
+package headercheck
 
 import (
 	"net/http"
@@ -6,7 +6,12 @@ import (
 	"testing"
 
 	"github.com/interline-io/transitland-mw/auth/authn"
+	"github.com/interline-io/transitland-mw/internal/anchecktest"
 )
+
+func newCtxUser(id string) authn.CtxUser {
+	return authn.NewCtxUser(id, "", "")
+}
 
 func TestKongMiddleware(t *testing.T) {
 	tcs := []struct {
@@ -28,7 +33,7 @@ func TestKongMiddleware(t *testing.T) {
 			if tc.consumerId != "" {
 				req.Header.Add("x-consumer-username", tc.consumerId)
 			}
-			testAuthMiddleware(t, req, mf, tc.code, tc.user)
+			anchecktest.TestAuthMiddleware(t, req, mf, tc.code, tc.user)
 		})
 	}
 }

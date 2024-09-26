@@ -1,4 +1,4 @@
-package azcheck
+package azchecker
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authz"
-	"github.com/interline-io/transitland-mw/internal/util"
 )
 
 func NewServer(checker authz.CheckerServer) (http.Handler, error) {
@@ -191,14 +190,22 @@ func NewServer(checker authz.CheckerServer) (http.Handler, error) {
 	return router, nil
 }
 
+func makeJsonError(msg string) string {
+	a := map[string]string{
+		"error": msg,
+	}
+	jj, _ := json.Marshal(&a)
+	return string(jj)
+}
+
 func handleJson(w http.ResponseWriter, ret any, err error) {
 	if err == ErrUnauthorized {
 		log.Error().Err(err).Msg("unauthorized")
-		http.Error(w, util.MakeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+		http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
 		return
 	} else if err != nil {
 		log.Error().Err(err).Msg("admin api error")
-		http.Error(w, util.MakeJsonError(http.StatusText(http.StatusInternalServerError)), http.StatusInternalServerError)
+		http.Error(w, makeJsonError(http.StatusText(http.StatusInternalServerError)), http.StatusInternalServerError)
 		return
 	}
 	if ret == nil {

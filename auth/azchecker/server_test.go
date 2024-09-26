@@ -1,4 +1,4 @@
-package azcheck
+package azchecker
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/interline-io/transitland-dbutil/testutil"
-	"github.com/interline-io/transitland-mw/auth/ancheck"
 	"github.com/interline-io/transitland-mw/auth/authz"
+	"github.com/interline-io/transitland-mw/auth/usercheck"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
@@ -414,7 +414,7 @@ func TestServer(t *testing.T) {
 
 func testServerWithUser(c *Checker, tk testCase) http.Handler {
 	srv, _ := NewServer(c)
-	srv = ancheck.UserDefaultMiddleware(stringOr(tk.CheckAsUser, tk.Subject.Name))(srv)
+	srv = usercheck.UserDefaultMiddleware(stringOr(tk.CheckAsUser, tk.Subject.Name))(srv)
 	return srv
 }
 

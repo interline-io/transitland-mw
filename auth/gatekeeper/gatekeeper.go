@@ -2,6 +2,7 @@ package ancheck
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,18 +14,17 @@ import (
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
 	"github.com/interline-io/transitland-mw/internal/ecache"
-	"github.com/interline-io/transitland-mw/internal/util"
 	"github.com/tidwall/gjson"
 )
 
 // GatekeeperMiddleware checks an external endpoint for a list of roles
-func GatekeeperMiddleware(client *redis.Client, endpoint string, param string, roleKey string, eidKey string, allowError bool) (MiddlewareFunc, error) {
+func GatekeeperMiddleware(client *redis.Client, endpoint string, param string, roleKey string, eidKey string, allowError bool) (func(http.Handler) http.Handler, error) {
 	gk := NewGatekeeper(client, endpoint, param, roleKey, eidKey)
 	gk.Start(60 * time.Second)
 	return newGatekeeperMiddleware(gk, allowError), nil
 }
 
-func newGatekeeperMiddleware(gk *Gatekeeper, allowError bool) MiddlewareFunc {
+func newGatekeeperMiddleware(gk *Gatekeeper, allowError bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check context for a user name; if it is present, replace user context with gatekeeper user
@@ -34,7 +34,7 @@ func newGatekeeperMiddleware(gk *Gatekeeper, allowError bool) MiddlewareFunc {
 				if err != nil {
 					log.Error().Err(err).Msg("gatekeeper error")
 					if !allowError {
-						http.Error(w, util.MakeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+						http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
 						return
 					}
 				} else if checkUser.ID() != "" {
@@ -166,4 +166,12 @@ type gkCacheItem struct {
 	ID           string
 	Roles        []string
 	ExternalData map[string]string
+}
+
+func makeJsonError(msg string) string {
+	a := map[string]string{
+		"error": msg,
+	}
+	jj, _ := json.Marshal(&a)
+	return string(jj)
 }

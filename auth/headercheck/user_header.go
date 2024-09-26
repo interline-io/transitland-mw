@@ -1,4 +1,4 @@
-package ancheck
+package headercheck
 
 import (
 	"net/http"

@@ -1,7 +1,8 @@
-package ancheck
+package jwtcheck
 
 import (
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"github.com/form3tech-oss/jwt-go"
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
-	"github.com/interline-io/transitland-mw/internal/util"
 )
 
 // JWTMiddleware checks and pulls user information from JWT in Authorization header.
@@ -30,12 +30,12 @@ func JWTMiddleware(jwtAudience string, jwtIssuer string, pubKeyPath string, useE
 				claims, err := validateJwt(verifyKey, jwtAudience, jwtIssuer, tokenString[1])
 				if err != nil {
 					log.Error().Err(err).Msgf("invalid jwt token")
-					http.Error(w, util.MakeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+					http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
 					return
 				}
 				if claims == nil {
 					log.Error().Err(err).Msgf("no claims")
-					http.Error(w, util.MakeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+					http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
 					return
 				}
 				userId := claims.Subject
@@ -75,4 +75,12 @@ func validateJwt(rsaPublicKey *rsa.PublicKey, jwtAudience string, jwtIssuer stri
 		return nil, errors.New("invalid issuer")
 	}
 	return claims, nil
+}
+
+func makeJsonError(msg string) string {
+	a := map[string]string{
+		"error": msg,
+	}
+	jj, _ := json.Marshal(&a)
+	return string(jj)
 }
