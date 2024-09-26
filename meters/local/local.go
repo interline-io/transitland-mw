@@ -8,10 +8,9 @@ import (
 	"github.com/interline-io/transitland-mw/meters"
 )
 
-type MeterUser = meters.MeterUser
-type ApiMeter = meters.ApiMeter
-type Dimension = meters.Dimension
-type Dimensions = meters.Dimensions
+func init() {
+	var _ meters.MeterProvider = &LocalMeterProvider{}
+}
 
 type LocalMeterProvider struct {
 	values map[string]localMeterUserEvents
@@ -32,14 +31,14 @@ func (m *LocalMeterProvider) Close() error {
 	return nil
 }
 
-func (m *LocalMeterProvider) NewMeter(user MeterUser) ApiMeter {
+func (m *LocalMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
 	return &localUserMeter{
 		user: user,
 		mp:   m,
 	}
 }
 
-func (m *LocalMeterProvider) sendMeter(u MeterUser, meterName string, value float64, dims []Dimension) error {
+func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, value float64, dims []meters.Dimension) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -65,7 +64,7 @@ func (m *LocalMeterProvider) sendMeter(u MeterUser, meterName string, value floa
 	return nil
 }
 
-func (m *LocalMeterProvider) GetValue(u MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims Dimensions) (float64, bool) {
+func (m *LocalMeterProvider) GetValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -102,17 +101,17 @@ type eventAddDim struct {
 }
 
 type localUserMeter struct {
-	user    MeterUser
+	user    meters.MeterUser
 	addDims []eventAddDim
 	mp      *LocalMeterProvider
 }
 
-func (m *localUserMeter) Meter(meterName string, value float64, extraDimensions Dimensions) error {
+func (m *localUserMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
 	// Copy in matching dimensions set through AddDimension
-	var eventDims []Dimension
+	var eventDims []meters.Dimension
 	for _, addDim := range m.addDims {
 		if addDim.MeterName == meterName {
-			eventDims = append(eventDims, Dimension{Key: addDim.Key, Value: addDim.Value})
+			eventDims = append(eventDims, meters.Dimension{Key: addDim.Key, Value: addDim.Value})
 		}
 	}
 	eventDims = append(eventDims, extraDimensions...)
@@ -123,7 +122,7 @@ func (m *localUserMeter) AddDimension(meterName string, key string, value string
 	m.addDims = append(m.addDims, eventAddDim{MeterName: meterName, Key: key, Value: value})
 }
 
-func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.mp.GetValue(m.user, meterName, startTime, endTime, dims)
 }
 
@@ -131,7 +130,7 @@ func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime
 
 type localMeterEvent struct {
 	time  time.Time
-	dims  []Dimension
+	dims  []meters.Dimension
 	value float64
 }
 

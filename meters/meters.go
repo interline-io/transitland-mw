@@ -74,22 +74,6 @@ func DimsContainedIn(checkDims Dimensions, eventDims Dimensions) bool {
 
 // Periods
 
-type UserMeterLimit struct {
-	User      string
-	MeterName string
-	Dims      Dimensions
-	Period    string
-	Limit     float64
-}
-
-func (lim *UserMeterLimit) Span() (time.Time, time.Time) {
-	a, b, err := PeriodSpan(lim.Period)
-	if err != nil {
-		panic(err)
-	}
-	return a, b
-}
-
 func PeriodSpan(period string) (time.Time, time.Time, error) {
 	now := time.Now().In(time.UTC)
 	d1 := now

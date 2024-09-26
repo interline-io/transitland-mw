@@ -3,6 +3,7 @@ package limit
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/meters"
@@ -10,29 +11,22 @@ import (
 )
 
 func init() {
-	var _ MeterProvider = &LimitMeterProvider{}
+	var _ meters.MeterProvider = &LimitMeterProvider{}
 }
-
-type MeterProvider = meters.MeterProvider
-type MeterUser = meters.MeterUser
-type ApiMeter = meters.ApiMeter
-type Dimension = meters.Dimension
-type Dimensions = meters.Dimensions
-type UserMeterLimit = meters.UserMeterLimit
 
 type LimitMeterProvider struct {
 	Enabled       bool
 	DefaultLimits []UserMeterLimit
-	MeterProvider
+	meters.MeterProvider
 }
 
-func NewLimitMeterProvider(provider MeterProvider) *LimitMeterProvider {
+func NewLimitMeterProvider(provider meters.MeterProvider) *LimitMeterProvider {
 	return &LimitMeterProvider{
 		MeterProvider: provider,
 	}
 }
 
-func (c *LimitMeterProvider) NewMeter(u MeterUser) ApiMeter {
+func (c *LimitMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
 	userData, _ := u.GetExternalData("gatekeeper")
 	return &LimitMeter{
 		userId:   u.ID(),
@@ -46,10 +40,10 @@ type LimitMeter struct {
 	userId   string
 	userData string
 	provider *LimitMeterProvider
-	ApiMeter
+	meters.ApiMeter
 }
 
-func (c *LimitMeter) GetLimits(meterName string, checkDims Dimensions) []UserMeterLimit {
+func (c *LimitMeter) GetLimits(meterName string, checkDims meters.Dimensions) []UserMeterLimit {
 	// The limit matches the event dimensions if all of the LIMIT dimensions are contained in event
 	var lims []UserMeterLimit
 	for _, userLimit := range parseGkUserLimits(c.userData) {
@@ -65,7 +59,7 @@ func (c *LimitMeter) GetLimits(meterName string, checkDims Dimensions) []UserMet
 	return lims
 }
 
-func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions Dimensions) error {
+func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
 	if c.provider.Enabled {
 		for _, lim := range c.GetLimits(meterName, extraDimensions) {
 			d1, d2 := lim.Span()
@@ -91,7 +85,7 @@ func parseGkUserLimits(v string) []UserMeterLimit {
 				Period:    plim.Get("time_period").String(),
 			}
 			if dim := plim.Get("amberflo_dimension").String(); dim != "" {
-				lim.Dims = append(lim.Dims, Dimension{
+				lim.Dims = append(lim.Dims, meters.Dimension{
 					Key:   dim,
 					Value: plim.Get("amberflo_dimension_value").String(),
 				})
@@ -100,4 +94,20 @@ func parseGkUserLimits(v string) []UserMeterLimit {
 		}
 	}
 	return lims
+}
+
+type UserMeterLimit struct {
+	User      string
+	MeterName string
+	Dims      meters.Dimensions
+	Period    string
+	Limit     float64
+}
+
+func (lim *UserMeterLimit) Span() (time.Time, time.Time) {
+	a, b, err := meters.PeriodSpan(lim.Period)
+	if err != nil {
+		panic(err)
+	}
+	return a, b
 }

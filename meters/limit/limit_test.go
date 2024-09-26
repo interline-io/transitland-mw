@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/interline-io/transitland-mw/internal/metertest"
+	"github.com/interline-io/transitland-mw/meters"
 	localmeter "github.com/interline-io/transitland-mw/meters/local"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,28 +30,6 @@ func TestLimitMeter(t *testing.T) {
 		})
 	}
 }
-
-// func TestLimitMeter_Amberflo(t *testing.T) {
-// 	mp, testConfig, err := getTestAmberfloMeter()
-// 	if err != nil {
-// 		t.Skip(err.Error())
-// 		return
-// 	}
-// 	user := metertest.NewTestUser(testConfig.user1.ID(), map[string]string{"amberflo": "amberflo"})
-// 	for _, lim := range testLims(testConfig.testMeter1) {
-// 		t.Run("", func(t *testing.T) {
-// 			cmp := NewLimitMeterProvider(mp)
-// 			cmp.Enabled = true
-// 			cmp.DefaultLimits = []UserMeterLimit{lim}
-// 			testLimitMeter(t,
-// 				cmp,
-// 				lim.MeterName,
-// 				user,
-// 				lim,
-// 			)
-// 		})
-// 	}
-// }
 
 func TestLimitMeter_Gatekeeper(t *testing.T) {
 	// JSON blob
@@ -101,38 +80,38 @@ func testLims(meterName string) []UserMeterLimit {
 			MeterName: meterName,
 			Period:    "hourly",
 			Limit:     50.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
 		},
 		{
 			MeterName: meterName,
 			Period:    "daily",
 			Limit:     80.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
 		},
 		{
 			MeterName: meterName,
 			Period:    "monthly",
 			Limit:     110.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
 		},
 		// bar tests
 		{
 			MeterName: meterName,
 			Period:    "hourly",
 			Limit:     140.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
 		},
 		{
 			MeterName: meterName,
 			Period:    "daily",
 			Limit:     170.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
 		},
 		{
 			MeterName: meterName,
 			Period:    "monthly",
 			Limit:     200.0,
-			Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
+			Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("bar:%d", testKey)}},
 		},
 	}
 	return lims

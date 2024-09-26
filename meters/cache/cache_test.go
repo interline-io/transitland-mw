@@ -59,11 +59,11 @@ func TestCacheMeter_Limits(t *testing.T) {
 	redisClient := testutil.MustOpenTestRedisClient(t)
 	meterName := "testmeter"
 	testKey := 1
-	lim := UserMeterLimit{
+	lim := limitmeter.UserMeterLimit{
 		MeterName: meterName,
 		Period:    "hourly",
 		Limit:     5.0,
-		Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
+		Dims:      meters.Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
 	}
 	user := metertest.NewTestUser("testuser", nil)
 	baseMp := localmeter.NewLocalMeterProvider()
@@ -77,7 +77,7 @@ func TestCacheMeter_Limits(t *testing.T) {
 	)
 	limitMp := limitmeter.NewLimitMeterProvider(cacheMp)
 	limitMp.Enabled = true
-	limitMp.DefaultLimits = []UserMeterLimit{lim}
+	limitMp.DefaultLimits = []limitmeter.UserMeterLimit{lim}
 	m := limitMp.NewMeter(user)
 	for i := 0; i < 10; i++ {
 		m.Meter(meterName, 1.0, lim.Dims)

@@ -13,6 +13,10 @@ import (
 	"github.com/xtgo/uuid"
 )
 
+func init() {
+	var _ meters.MeterProvider = &AmberfloMeterProvider{}
+}
+
 type AmberfloMeterProvider struct {
 	apikey      string
 	interval    time.Duration

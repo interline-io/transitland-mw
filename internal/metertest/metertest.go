@@ -10,7 +10,6 @@ import (
 type MeterUser = meters.MeterUser
 type MeterProvider = meters.MeterProvider
 type Dimension = meters.Dimension
-type UserMeterLimit = meters.UserMeterLimit
 
 type TestUser struct {
 	name string
@@ -45,7 +44,7 @@ type Config struct {
 }
 
 func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
-	d1, d2 := (&UserMeterLimit{Period: "hourly"}).Span()
+	d1, d2, _ := meters.PeriodSpan("hourly")
 	t.Run("Meter", func(t *testing.T) {
 		m := mp.NewMeter(cfg.User1)
 		v, _ := m.GetValue(cfg.TestMeter1, d1, d2, nil)
