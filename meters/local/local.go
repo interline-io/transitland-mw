@@ -1,51 +1,56 @@
-package meters
+package local
 
 import (
 	"sync"
 	"time"
 
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/meters"
 )
 
-type DefaultMeterProvider struct {
-	values map[string]defaultMeterUserEvents
+func init() {
+	var _ meters.MeterProvider = &LocalMeterProvider{}
+}
+
+type LocalMeterProvider struct {
+	values map[string]localMeterUserEvents
 	lock   sync.Mutex
 }
 
-func NewDefaultMeterProvider() *DefaultMeterProvider {
-	return &DefaultMeterProvider{
-		values: map[string]defaultMeterUserEvents{},
+func NewLocalMeterProvider() *LocalMeterProvider {
+	return &LocalMeterProvider{
+		values: map[string]localMeterUserEvents{},
 	}
 }
 
-func (m *DefaultMeterProvider) Flush() error {
+func (m *LocalMeterProvider) Flush() error {
 	return nil
 }
 
-func (m *DefaultMeterProvider) Close() error {
+func (m *LocalMeterProvider) Close() error {
 	return nil
 }
 
-func (m *DefaultMeterProvider) NewMeter(user MeterUser) ApiMeter {
-	return &defaultUserMeter{
+func (m *LocalMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
+	return &localUserMeter{
 		user: user,
 		mp:   m,
 	}
 }
 
-func (m *DefaultMeterProvider) sendMeter(u MeterUser, meterName string, value float64, dims []Dimension) error {
+func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, value float64, dims []meters.Dimension) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
 	if !ok {
-		a = defaultMeterUserEvents{}
+		a = localMeterUserEvents{}
 		m.values[meterName] = a
 	}
 	userName := ""
 	if u != nil {
 		userName = u.ID()
 	}
-	event := defaultMeterEvent{
+	event := localMeterEvent{
 		value: value,
 		time:  time.Now().In(time.UTC),
 		dims:  dims,
@@ -59,7 +64,7 @@ func (m *DefaultMeterProvider) sendMeter(u MeterUser, meterName string, value fl
 	return nil
 }
 
-func (m *DefaultMeterProvider) GetValue(u MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims Dimensions) (float64, bool) {
+func (m *LocalMeterProvider) GetValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -77,7 +82,7 @@ func (m *DefaultMeterProvider) GetValue(u MeterUser, meterName string, startTime
 			// fmt.Println("not matched on start time", userEvent.time, startTime)
 			match = false
 		}
-		if !dimsContainedIn(checkDims, userEvent.dims) {
+		if !meters.DimsContainedIn(checkDims, userEvent.dims) {
 			// fmt.Println("not matched on dims")
 			match = false
 		}
@@ -89,38 +94,44 @@ func (m *DefaultMeterProvider) GetValue(u MeterUser, meterName string, startTime
 	return total, ok
 }
 
-type defaultUserMeter struct {
-	user    MeterUser
-	addDims []eventAddDim
-	mp      *DefaultMeterProvider
+type eventAddDim struct {
+	MeterName string
+	Key       string
+	Value     string
 }
 
-func (m *defaultUserMeter) Meter(meterName string, value float64, extraDimensions Dimensions) error {
+type localUserMeter struct {
+	user    meters.MeterUser
+	addDims []eventAddDim
+	mp      *LocalMeterProvider
+}
+
+func (m *localUserMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
 	// Copy in matching dimensions set through AddDimension
-	var eventDims []Dimension
+	var eventDims []meters.Dimension
 	for _, addDim := range m.addDims {
 		if addDim.MeterName == meterName {
-			eventDims = append(eventDims, Dimension{Key: addDim.Key, Value: addDim.Value})
+			eventDims = append(eventDims, meters.Dimension{Key: addDim.Key, Value: addDim.Value})
 		}
 	}
 	eventDims = append(eventDims, extraDimensions...)
 	return m.mp.sendMeter(m.user, meterName, value, eventDims)
 }
 
-func (m *defaultUserMeter) AddDimension(meterName string, key string, value string) {
+func (m *localUserMeter) AddDimension(meterName string, key string, value string) {
 	m.addDims = append(m.addDims, eventAddDim{MeterName: meterName, Key: key, Value: value})
 }
 
-func (m *defaultUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.mp.GetValue(m.user, meterName, startTime, endTime, dims)
 }
 
 ///////////
 
-type defaultMeterEvent struct {
+type localMeterEvent struct {
 	time  time.Time
-	dims  []Dimension
+	dims  []meters.Dimension
 	value float64
 }
 
-type defaultMeterUserEvents map[string][]defaultMeterEvent
+type localMeterUserEvents map[string][]localMeterEvent

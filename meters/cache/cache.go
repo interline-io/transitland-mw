@@ -1,4 +1,4 @@
-package meters
+package cache
 
 import (
 	"context"
@@ -10,8 +10,13 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/meters"
 	"github.com/interline-io/transitland-mw/rcache"
 )
+
+func init() {
+	var _ meters.MeterProvider = &CacheMeterProvider{}
+}
 
 // CacheMeterKey should map to GetValue arguments
 type CacheMeterKey struct {
@@ -41,20 +46,20 @@ type CacheMeterData struct {
 // Horrible hack to pass users
 type userPasser struct {
 	lock  sync.Mutex
-	users map[string]MeterUser
+	users map[string]meters.MeterUser
 }
 
 // Wraps a meter with caching
 type CacheMeterProvider struct {
 	users *userPasser
 	cache *rcache.Cache[CacheMeterKey, CacheMeterData]
-	MeterProvider
+	meters.MeterProvider
 }
 
-func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *redis.Client, recheck time.Duration, expires time.Duration, refresh time.Duration) *CacheMeterProvider {
+func NewCacheMeterProvider(provider meters.MeterProvider, topic string, redisClient *redis.Client, recheck time.Duration, expires time.Duration, refresh time.Duration) *CacheMeterProvider {
 	// Horrible hack: pass user by string
 	up := &userPasser{
-		users: map[string]MeterUser{},
+		users: map[string]meters.MeterUser{},
 	}
 
 	// Refresh function
@@ -98,7 +103,7 @@ func NewCacheMeterProvider(provider MeterProvider, topic string, redisClient *re
 	}
 }
 
-func (c *CacheMeterProvider) NewMeter(u MeterUser) ApiMeter {
+func (c *CacheMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
 	return &CacheMeter{
 		user:     u,
 		provider: c,
@@ -106,7 +111,7 @@ func (c *CacheMeterProvider) NewMeter(u MeterUser) ApiMeter {
 	}
 }
 
-func (m *CacheMeterProvider) GetValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+func (m *CacheMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	// Horrible hack: pass user by string
 	m.users.lock.Lock()
 	m.users.users[user.ID()] = user
@@ -128,11 +133,11 @@ func (m *CacheMeterProvider) GetValue(user MeterUser, meterName string, startTim
 }
 
 type CacheMeter struct {
-	user     MeterUser
+	user     meters.MeterUser
 	provider *CacheMeterProvider
-	ApiMeter
+	meters.ApiMeter
 }
 
-func (m *CacheMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+func (m *CacheMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.provider.GetValue(m.user, meterName, startTime, endTime, dims)
 }

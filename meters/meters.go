@@ -2,11 +2,10 @@ package meters
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/transitland-mw/auth/authn"
 )
 
@@ -58,13 +57,7 @@ type Dimension struct {
 
 type Dimensions []Dimension
 
-type eventAddDim struct {
-	MeterName string
-	Key       string
-	Value     string
-}
-
-func dimsContainedIn(checkDims Dimensions, eventDims Dimensions) bool {
+func DimsContainedIn(checkDims Dimensions, eventDims Dimensions) bool {
 	for _, matchDim := range checkDims {
 		match := false
 		for _, ed := range eventDims {
@@ -79,44 +72,29 @@ func dimsContainedIn(checkDims Dimensions, eventDims Dimensions) bool {
 	return true
 }
 
-//////
+// Periods
 
-type Config struct {
-	EnableMetering         bool
-	EnableRateLimits       bool
-	MeteringProvider       string
-	MeteringAmberfloConfig string
-	RedisClient            *redis.Client
-}
-
-func GetProvider(cfg Config) (MeterProvider, error) {
-	var meterProvider MeterProvider
-	meterProvider = NewDefaultMeterProvider()
-	if cfg.MeteringProvider == "amberflo" {
-		a := NewAmberfloMeterProvider(os.Getenv("AMBERFLO_APIKEY"), 30*time.Second, 100)
-		if cfg.MeteringAmberfloConfig != "" {
-			if err := a.LoadConfig(cfg.MeteringAmberfloConfig); err != nil {
-				return nil, err
-			}
-		}
-		meterProvider = a
+func PeriodSpan(period string) (time.Time, time.Time, error) {
+	now := time.Now().In(time.UTC)
+	d1 := now
+	d2 := now
+	if period == "hourly" {
+		d1 = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
+		d2 = d1.Add(3600 * time.Second)
+	} else if period == "daily" {
+		d1 = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(0, 0, 1)
+	} else if period == "monthly" {
+		d1 = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(0, 1, 0)
+	} else if period == "yearly" {
+		d1 = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+		d2 = d1.AddDate(1, 0, 0)
+	} else if period == "total" {
+		d1 = time.Unix(0, 0)
+		d2 = time.Unix(1<<63-1, 0)
+	} else {
+		return now, now, fmt.Errorf("unknown period: %s", period)
 	}
-	if cfg.RedisClient != nil {
-		cacheMp := NewCacheMeterProvider(
-			meterProvider,
-			"cachemeter",
-			cfg.RedisClient,
-			5*time.Minute,
-			1*time.Hour,
-			1*time.Minute,
-		)
-		meterProvider = cacheMp
-	}
-	if cfg.EnableRateLimits {
-		mp := NewLimitMeterProvider(meterProvider)
-		mp.Enabled = true
-		// mp.DefaultLimits = append(mp.DefaultLimits, meters.UserMeterLimit{Limit: 10, Period: "monthly", MeterName: "rest"})
-		meterProvider = mp
-	}
-	return meterProvider, nil
+	return d1, d2, nil
 }
