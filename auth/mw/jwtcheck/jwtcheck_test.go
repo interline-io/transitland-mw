@@ -1,4 +1,4 @@
-package ancheck
+package jwtcheck
 
 import "testing"
 

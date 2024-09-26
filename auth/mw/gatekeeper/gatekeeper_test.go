@@ -12,9 +12,15 @@ import (
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/interline-io/transitland-mw/auth/authn"
+	"github.com/interline-io/transitland-mw/auth/mw/usercheck"
+	"github.com/interline-io/transitland-mw/internal/anchecktest"
 	"github.com/interline-io/transitland-mw/internal/ecache"
 	"github.com/stretchr/testify/assert"
 )
+
+func newCtxUser(id string) authn.CtxUser {
+	return authn.NewCtxUser(id, "", "")
+}
 
 func TestGatekeeper(t *testing.T) {
 	// Mock users
@@ -62,14 +68,14 @@ func TestGatekeeper(t *testing.T) {
 	gkHelper := func(next http.Handler, em string, endpoint string, param string, roleKey string, eidKey string, allowError bool) http.Handler {
 		// Does not start update process
 		gk := NewGatekeeper(nil, endpoint, param, roleKey, eidKey)
-		return UserDefaultMiddleware(em)(newGatekeeperMiddleware(gk, allowError)(next))
+		return usercheck.UserDefaultMiddleware(em)(newGatekeeperMiddleware(gk, allowError)(next))
 	}
 
 	// Tests
 	testStartTime := time.Now()
 	tcs := []struct {
 		name  string
-		mwf   MiddlewareFunc
+		mwf   func(http.Handler) http.Handler
 		code  int
 		user  authn.User
 		after func(*testing.T)
@@ -98,7 +104,7 @@ func TestGatekeeper(t *testing.T) {
 				u := gkCacheItem{ID: testEmail, Roles: []string{testRole}}
 				gk := NewGatekeeper(nil, ts200.URL, "user", "roles", "external_ids")
 				gk.cache.SetTTL(context.Background(), testEmail, u, 0, 0)
-				return UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
+				return usercheck.UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
 			},
 			200,
 			newCtxUser(testEmail).WithRoles(testRole),
@@ -111,7 +117,7 @@ func TestGatekeeper(t *testing.T) {
 				gk := NewGatekeeper(nil, tsTimeout.URL, "user", "roles", "external_ids")
 				gk.RequestTimeout = 100 * time.Millisecond
 				gk.cache.SetTTL(context.Background(), testEmail, u, 0, 0)
-				return UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
+				return usercheck.UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
 			},
 			200,
 			newCtxUser(testEmail).WithRoles(testRole),
@@ -168,7 +174,7 @@ func TestGatekeeper(t *testing.T) {
 				testStartTime = time.Now()
 				gk := NewGatekeeper(nil, tsTimeout.URL, "user", "roles", "external_ids")
 				gk.RequestTimeout = 100 * time.Millisecond
-				return UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
+				return usercheck.UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
 			},
 			401,
 			nil,
@@ -184,7 +190,7 @@ func TestGatekeeper(t *testing.T) {
 			func(next http.Handler) http.Handler {
 				gk := NewGatekeeper(nil, tsTimeout.URL, "user", "roles", "external_ids")
 				gk.RequestTimeout = 100 * time.Millisecond
-				return UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, true)(next))
+				return usercheck.UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, true)(next))
 			},
 			200,
 			newCtxUser(testEmail),
@@ -198,7 +204,7 @@ func TestGatekeeper(t *testing.T) {
 				mock.ExpectGet(cacheRedisKey("gatekeeper", testEmail)).SetVal(cacheItemJson(u, 0))
 				gk := NewGatekeeper(db, tsTimeout.URL, "user", "roles", "external_ids")
 				gk.RequestTimeout = 100 * time.Millisecond
-				return UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
+				return usercheck.UserDefaultMiddleware(testEmail)(newGatekeeperMiddleware(gk, false)(next))
 			},
 			200,
 			newCtxUser(testEmail).WithRoles(testRole),
@@ -210,7 +216,7 @@ func TestGatekeeper(t *testing.T) {
 				gk := NewGatekeeper(nil, ts200.URL, "user", "roles", "external_ids")
 				gk.recheckTtl = 1 * time.Millisecond
 				gk.Start(10 * time.Millisecond)
-				return UserDefaultMiddleware("refresh@transit.land")(newGatekeeperMiddleware(gk, false)(next))
+				return usercheck.UserDefaultMiddleware("refresh@transit.land")(newGatekeeperMiddleware(gk, false)(next))
 			},
 			200,
 			newCtxUser("refresh@transit.land").WithRoles("refresh_test"),
@@ -225,7 +231,7 @@ func TestGatekeeper(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			testAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
+			anchecktest.TestAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
 			if tc.after != nil {
 				tc.after(t)
 			}
