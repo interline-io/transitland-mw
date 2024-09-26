@@ -1,9 +1,10 @@
-package metrics
+package prom
 
 import (
 	"net/http"
 	"strconv"
 
+	"github.com/interline-io/transitland-mw/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -31,7 +32,7 @@ func (m *PromMetrics) MetricsHandler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{})
 }
 
-func (m *PromMetrics) NewJobMetric(queue string) JobMetric {
+func (m *PromMetrics) NewJobMetric(queue string) metrics.JobMetric {
 	reg := m.registry
 	jobsTotal := promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
@@ -58,7 +59,7 @@ func (m *PromMetrics) NewJobMetric(queue string) JobMetric {
 	}
 }
 
-func (m *PromMetrics) NewApiMetric(handlerName string) ApiMetric {
+func (m *PromMetrics) NewApiMetric(handlerName string) metrics.ApiMetric {
 	reg := prometheus.WrapRegistererWith(prometheus.Labels{"handler": handlerName}, m.registry)
 	requestsTotal := promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{

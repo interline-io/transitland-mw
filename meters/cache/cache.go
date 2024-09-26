@@ -1,4 +1,4 @@
-package meters
+package cache
 
 import (
 	"context"
@@ -10,8 +10,16 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/meters"
 	"github.com/interline-io/transitland-mw/rcache"
 )
+
+type MeterProvider = meters.MeterProvider
+type MeterUser = meters.MeterUser
+type ApiMeter = meters.ApiMeter
+type Dimension = meters.Dimension
+type Dimensions = meters.Dimensions
+type UserMeterLimit = meters.UserMeterLimit
 
 // CacheMeterKey should map to GetValue arguments
 type CacheMeterKey struct {

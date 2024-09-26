@@ -1,17 +1,24 @@
-package meters
+package limit
 
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/meters"
 	"github.com/tidwall/gjson"
 )
 
 func init() {
 	var _ MeterProvider = &LimitMeterProvider{}
 }
+
+type MeterProvider = meters.MeterProvider
+type MeterUser = meters.MeterUser
+type ApiMeter = meters.ApiMeter
+type Dimension = meters.Dimension
+type Dimensions = meters.Dimensions
+type UserMeterLimit = meters.UserMeterLimit
 
 type LimitMeterProvider struct {
 	Enabled       bool
@@ -46,12 +53,12 @@ func (c *LimitMeter) GetLimits(meterName string, checkDims Dimensions) []UserMet
 	// The limit matches the event dimensions if all of the LIMIT dimensions are contained in event
 	var lims []UserMeterLimit
 	for _, userLimit := range parseGkUserLimits(c.userData) {
-		if userLimit.MeterName == meterName && dimsContainedIn(userLimit.Dims, checkDims) {
+		if userLimit.MeterName == meterName && meters.DimsContainedIn(userLimit.Dims, checkDims) {
 			lims = append(lims, userLimit)
 		}
 	}
 	for _, defaultLimit := range c.provider.DefaultLimits {
-		if defaultLimit.MeterName == meterName && dimsContainedIn(defaultLimit.Dims, checkDims) {
+		if defaultLimit.MeterName == meterName && meters.DimsContainedIn(defaultLimit.Dims, checkDims) {
 			lims = append(lims, defaultLimit)
 		}
 	}
@@ -74,22 +81,6 @@ func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions Dime
 	return c.ApiMeter.Meter(meterName, value, extraDimensions)
 }
 
-type UserMeterLimit struct {
-	User      string
-	MeterName string
-	Dims      Dimensions
-	Period    string
-	Limit     float64
-}
-
-func (lim *UserMeterLimit) Span() (time.Time, time.Time) {
-	a, b, err := PeriodSpan(lim.Period)
-	if err != nil {
-		panic(err)
-	}
-	return a, b
-}
-
 func parseGkUserLimits(v string) []UserMeterLimit {
 	var lims []UserMeterLimit
 	for _, productLimit := range gjson.Get(v, "product_limits").Map() {
@@ -109,29 +100,4 @@ func parseGkUserLimits(v string) []UserMeterLimit {
 		}
 	}
 	return lims
-}
-
-func PeriodSpan(period string) (time.Time, time.Time, error) {
-	now := time.Now().In(time.UTC)
-	d1 := now
-	d2 := now
-	if period == "hourly" {
-		d1 = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
-		d2 = d1.Add(3600 * time.Second)
-	} else if period == "daily" {
-		d1 = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(0, 0, 1)
-	} else if period == "monthly" {
-		d1 = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(0, 1, 0)
-	} else if period == "yearly" {
-		d1 = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
-		d2 = d1.AddDate(1, 0, 0)
-	} else if period == "total" {
-		d1 = time.Unix(0, 0)
-		d2 = time.Unix(1<<63-1, 0)
-	} else {
-		return now, now, fmt.Errorf("unknown period: %s", period)
-	}
-	return d1, d2, nil
 }

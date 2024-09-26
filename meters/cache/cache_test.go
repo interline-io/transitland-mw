@@ -1,4 +1,4 @@
-package meters
+package cache
 
 import (
 	"fmt"
@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"github.com/interline-io/transitland-dbutil/testutil"
+	"github.com/interline-io/transitland-mw/internal/metertest"
+	"github.com/interline-io/transitland-mw/meters"
+	limitmeter "github.com/interline-io/transitland-mw/meters/limit"
+	localmeter "github.com/interline-io/transitland-mw/meters/local"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,14 +21,14 @@ func TestCacheMeter(t *testing.T) {
 	}
 	redisClient := testutil.MustOpenTestRedisClient(t)
 
-	t1, t2, err := PeriodSpan("monthly")
+	t1, t2, err := meters.PeriodSpan("monthly")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user := &testUser{name: "test1"}
+	user := metertest.NewTestUser("test1", nil)
 	meterName := "ok"
-	mp := NewDefaultMeterProvider()
+	mp := localmeter.NewLocalMeterProvider()
 	cmp := NewCacheMeterProvider(
 		mp,
 		"testcachemeter",
@@ -61,8 +65,8 @@ func TestCacheMeter_Limits(t *testing.T) {
 		Limit:     5.0,
 		Dims:      Dimensions{{Key: "ok", Value: fmt.Sprintf("foo:%d", testKey)}},
 	}
-	user := testUser{name: "testuser"}
-	baseMp := NewDefaultMeterProvider()
+	user := metertest.NewTestUser("testuser", nil)
+	baseMp := localmeter.NewLocalMeterProvider()
 	cacheMp := NewCacheMeterProvider(
 		baseMp,
 		"testcachemeter",
@@ -71,7 +75,7 @@ func TestCacheMeter_Limits(t *testing.T) {
 		1*time.Hour,
 		4000*time.Millisecond,
 	)
-	limitMp := NewLimitMeterProvider(cacheMp)
+	limitMp := limitmeter.NewLimitMeterProvider(cacheMp)
 	limitMp.Enabled = true
 	limitMp.DefaultLimits = []UserMeterLimit{lim}
 	m := limitMp.NewMeter(user)

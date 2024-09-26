@@ -1,4 +1,4 @@
-package meters
+package amberflo
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/amberflo/metering-go/v2"
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/meters"
 	"github.com/rs/zerolog"
 	"github.com/xtgo/uuid"
 )
@@ -42,10 +43,10 @@ func NewAmberfloMeterProvider(apikey string, interval time.Duration, batchSize i
 }
 
 type amberFloConfig struct {
-	Name          string     `json:"name,omitempty"`
-	DefaultUser   string     `json:"default_user,omitempty"`
-	ExternalIDKey string     `json:"external_id_key,omitempty"`
-	Dimensions    Dimensions `json:"dimensions,omitempty"`
+	Name          string            `json:"name,omitempty"`
+	DefaultUser   string            `json:"default_user,omitempty"`
+	ExternalIDKey string            `json:"external_id_key,omitempty"`
+	Dimensions    meters.Dimensions `json:"dimensions,omitempty"`
 }
 
 func (m *AmberfloMeterProvider) LoadConfig(path string) error {
@@ -61,7 +62,7 @@ func (m *AmberfloMeterProvider) LoadConfig(path string) error {
 	return nil
 }
 
-func (m *AmberfloMeterProvider) NewMeter(user MeterUser) ApiMeter {
+func (m *AmberfloMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
 	return &amberFloMeter{
 		user: user,
 		mp:   m,
@@ -78,7 +79,7 @@ func (m *AmberfloMeterProvider) Flush() error {
 	return nil
 }
 
-func (m *AmberfloMeterProvider) GetValue(user MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims Dimensions) (float64, bool) {
+func (m *AmberfloMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
 	cfg, ok := m.getcfg(meterName)
 	if !ok {
 		return 0, false
@@ -138,7 +139,7 @@ func (m *AmberfloMeterProvider) GetValue(user MeterUser, meterName string, start
 	return total, true
 }
 
-func (m *AmberfloMeterProvider) sendMeter(user MeterUser, meterName string, value float64, extraDimensions Dimensions) error {
+func (m *AmberfloMeterProvider) sendMeter(user meters.MeterUser, meterName string, value float64, extraDimensions meters.Dimensions) error {
 	cfg, ok := m.getcfg(meterName)
 	if !ok {
 		return nil
@@ -167,7 +168,7 @@ func (m *AmberfloMeterProvider) sendMeter(user MeterUser, meterName string, valu
 	})
 }
 
-func (m *AmberfloMeterProvider) getCustomerID(cfg amberFloConfig, user MeterUser) (string, bool) {
+func (m *AmberfloMeterProvider) getCustomerID(cfg amberFloConfig, user meters.MeterUser) (string, bool) {
 	customerId := cfg.DefaultUser
 	if user != nil {
 		eidKey := cfg.ExternalIDKey
@@ -200,18 +201,24 @@ func (m *AmberfloMeterProvider) getcfg(meterName string) (amberFloConfig, bool) 
 
 //////////
 
+type eventAddDim struct {
+	MeterName string
+	Key       string
+	Value     string
+}
+
 type amberFloMeter struct {
-	user    MeterUser
+	user    meters.MeterUser
 	addDims []eventAddDim
 	mp      *AmberfloMeterProvider
 }
 
-func (m *amberFloMeter) Meter(meterName string, value float64, extraDimensions Dimensions) error {
-	var eventDims []Dimension
+func (m *amberFloMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
+	var eventDims []meters.Dimension
 	// Copy in matching dimensions set through AddDimension
 	for _, addDim := range m.addDims {
 		if addDim.MeterName == meterName {
-			eventDims = append(eventDims, Dimension{Key: addDim.Key, Value: addDim.Value})
+			eventDims = append(eventDims, meters.Dimension{Key: addDim.Key, Value: addDim.Value})
 		}
 	}
 	eventDims = append(eventDims, extraDimensions...)
@@ -227,7 +234,7 @@ func (m *amberFloMeter) AddDimension(meterName string, key string, value string)
 	m.addDims = append(m.addDims, eventAddDim{MeterName: meterName, Key: key, Value: value})
 }
 
-func (m *amberFloMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims Dimensions) (float64, bool) {
+func (m *amberFloMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.mp.GetValue(m.user, meterName, startTime, endTime, dims)
 }
 

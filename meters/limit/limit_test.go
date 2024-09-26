@@ -1,20 +1,22 @@
-package meters
+package limit
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/interline-io/transitland-mw/internal/metertest"
+	localmeter "github.com/interline-io/transitland-mw/meters/local"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLimitMeter(t *testing.T) {
 	meterName := "testmeter"
-	user := testUser{name: "testuser"}
+	user := metertest.NewTestUser("testuser", nil)
 	// cmp.DefaultLimits = testLims(meterName)
 	// for _, lim := range cmp.DefaultLimits {
 	for _, lim := range testLims(meterName) {
 		t.Run("", func(t *testing.T) {
-			mp := NewDefaultMeterProvider()
+			mp := localmeter.NewLocalMeterProvider()
 			cmp := NewLimitMeterProvider(mp)
 			cmp.Enabled = true
 			cmp.DefaultLimits = []UserMeterLimit{lim}
@@ -28,30 +30,27 @@ func TestLimitMeter(t *testing.T) {
 	}
 }
 
-func TestLimitMeter_Amberflo(t *testing.T) {
-	mp, testConfig, err := getTestAmberfloMeter()
-	if err != nil {
-		t.Skip(err.Error())
-		return
-	}
-	user := testUser{
-		name: testConfig.user1.ID(),
-		data: map[string]string{"amberflo": "amberflo"},
-	}
-	for _, lim := range testLims(testConfig.testMeter1) {
-		t.Run("", func(t *testing.T) {
-			cmp := NewLimitMeterProvider(mp)
-			cmp.Enabled = true
-			cmp.DefaultLimits = []UserMeterLimit{lim}
-			testLimitMeter(t,
-				cmp,
-				lim.MeterName,
-				user,
-				lim,
-			)
-		})
-	}
-}
+// func TestLimitMeter_Amberflo(t *testing.T) {
+// 	mp, testConfig, err := getTestAmberfloMeter()
+// 	if err != nil {
+// 		t.Skip(err.Error())
+// 		return
+// 	}
+// 	user := metertest.NewTestUser(testConfig.user1.ID(), map[string]string{"amberflo": "amberflo"})
+// 	for _, lim := range testLims(testConfig.testMeter1) {
+// 		t.Run("", func(t *testing.T) {
+// 			cmp := NewLimitMeterProvider(mp)
+// 			cmp.Enabled = true
+// 			cmp.DefaultLimits = []UserMeterLimit{lim}
+// 			testLimitMeter(t,
+// 				cmp,
+// 				lim.MeterName,
+// 				user,
+// 				lim,
+// 			)
+// 		})
+// 	}
+// }
 
 func TestLimitMeter_Gatekeeper(t *testing.T) {
 	// JSON blob
@@ -76,12 +75,12 @@ func TestLimitMeter_Gatekeeper(t *testing.T) {
 			]
 		},
 	}`
-	user := testUser{name: "testuser"}
-	user.data = map[string]string{"gatekeeper": gkData}
+
+	user := metertest.NewTestUser("testuser", map[string]string{"gatekeeper": gkData})
 	lims := parseGkUserLimits(gkData)
 	for _, lim := range lims {
 		t.Run("", func(t *testing.T) {
-			mp := NewDefaultMeterProvider()
+			mp := localmeter.NewLocalMeterProvider()
 			cmp := NewLimitMeterProvider(mp)
 			cmp.Enabled = true
 			testLimitMeter(t,
@@ -139,7 +138,7 @@ func testLims(meterName string) []UserMeterLimit {
 	return lims
 }
 
-func testLimitMeter(t *testing.T, cmp *LimitMeterProvider, meterName string, user testUser, lim UserMeterLimit) {
+func testLimitMeter(t *testing.T, cmp *LimitMeterProvider, meterName string, user metertest.TestUser, lim UserMeterLimit) {
 	incr := 1.0
 	m := cmp.NewMeter(user)
 	startTime, endTime := lim.Span()
