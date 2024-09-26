@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/go-redis/redismock/v8"
-	"github.com/interline-io/transitland-mw/auth/ancheck/usercheck"
 	"github.com/interline-io/transitland-mw/auth/authn"
+	"github.com/interline-io/transitland-mw/auth/mw/usercheck"
 	"github.com/interline-io/transitland-mw/internal/anchecktest"
 	"github.com/interline-io/transitland-mw/internal/ecache"
 	"github.com/stretchr/testify/assert"
