@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/interline-io/log"
+	"github.com/interline-io/transitland-mw/cache/rcache"
 	"github.com/interline-io/transitland-mw/meters"
-	"github.com/interline-io/transitland-mw/rcache"
 )
 
 func init() {

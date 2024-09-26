@@ -7,7 +7,6 @@ require (
 	github.com/auth0/go-auth0 v0.17.2
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d
 	github.com/interline-io/transitland-dbutil v0.0.0-20240921002057-a0d8e4032291
 	github.com/openfga/go-sdk v0.2.3
