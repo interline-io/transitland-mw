@@ -1,4 +1,4 @@
-package Cache
+package tzcache
 
 import (
 	"sync"

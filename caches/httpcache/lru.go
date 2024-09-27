@@ -1,4 +1,4 @@
-package Cache
+package httpcache
 
 import "github.com/tidwall/tinylru"
 
