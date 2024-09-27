@@ -9,11 +9,13 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d
 	github.com/interline-io/transitland-dbutil v0.0.0-20240926050128-c077a48a6bd9
+	github.com/jellydator/ttlcache/v2 v2.11.1
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
+	github.com/tidwall/tinylru v1.2.1
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
