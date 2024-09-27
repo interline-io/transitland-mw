@@ -1,40 +1,40 @@
-package httpcache
+package Cache
 
 import (
 	"net/http"
 )
 
-type Cache interface {
+type Cacher interface {
 	Get(string) (interface{}, bool)
 	Set(string, interface{}) error
 	Len() int
 	Close() error
 }
 
-type HTTPCache struct {
+type Cache struct {
 	key          HTTPKey
 	roundTripper http.RoundTripper
-	cache        Cache
+	cacher       Cacher
 }
 
-func NewHTTPCache(rt http.RoundTripper, key HTTPKey, cache Cache) *HTTPCache {
+func NewCache(rt http.RoundTripper, key HTTPKey, cacher Cacher) *Cache {
 	if key == nil {
 		key = DefaultKey
 	}
 	if rt == nil {
 		rt = http.DefaultTransport
 	}
-	if cache == nil {
-		cache = NewLRUCache(16 * 1024)
+	if cacher == nil {
+		cacher = NewLRUCache(16 * 1024)
 	}
-	return &HTTPCache{
+	return &Cache{
 		roundTripper: rt,
 		key:          key,
-		cache:        cache,
+		cacher:       cacher,
 	}
 }
 
-func (h *HTTPCache) makeRequest(req *http.Request, key string) (*http.Response, error) {
+func (h *Cache) makeRequest(req *http.Request, key string) (*http.Response, error) {
 	// Make request
 	res, err := h.roundTripper.RoundTrip(req)
 	if err != nil {
@@ -45,12 +45,12 @@ func (h *HTTPCache) makeRequest(req *http.Request, key string) (*http.Response, 
 	if err != nil {
 		return nil, err
 	}
-	h.cache.Set(key, rr)
+	h.cacher.Set(key, rr)
 	return res, nil
 }
 
-func (h *HTTPCache) check(key string) (*http.Response, error) {
-	if a, ok := h.cache.Get(key); ok {
+func (h *Cache) check(key string) (*http.Response, error) {
+	if a, ok := h.cacher.Get(key); ok {
 		v, ok := a.(*cacheResponse)
 		if ok {
 			return fromCacheResponse(v)
@@ -59,13 +59,13 @@ func (h *HTTPCache) check(key string) (*http.Response, error) {
 	return nil, nil
 }
 
-func (h *HTTPCache) RoundTrip(req *http.Request) (*http.Response, error) {
+func (h *Cache) RoundTrip(req *http.Request) (*http.Response, error) {
 	key := h.key(req)
 	if a, err := h.check(key); a != nil {
-		// fmt.Println("httpcache: got cached:", key)
+		// fmt.Println("Cache: got cached:", key)
 		return a, err
 	}
 	rr, err := h.makeRequest(req, key)
-	// fmt.Println("httpcache: saved to cache:", key)
+	// fmt.Println("Cache: saved to cache:", key)
 	return rr, err
 }

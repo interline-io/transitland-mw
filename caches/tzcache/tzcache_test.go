@@ -1,4 +1,4 @@
-package tzcache
+package Cache
 
 import (
 	"sync"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func BenchmarkLookupCache_LoadLocation(b *testing.B) {
+func BenchmarkLoadLocation(b *testing.B) {
 	t := "America/Los_Angeles"
 	time.LoadLocation(t)
 	for n := 0; n < b.N; n++ {
@@ -16,7 +16,7 @@ func BenchmarkLookupCache_LoadLocation(b *testing.B) {
 	}
 }
 
-func BenchmarkLookupCache_LoadLocationCache(b *testing.B) {
+func BenchmarkLoadLocationCache(b *testing.B) {
 	lock := sync.Mutex{}
 	c := map[string]*time.Location{}
 	t := "America/Los_Angeles"
@@ -33,8 +33,8 @@ func BenchmarkLookupCache_LoadLocationCache(b *testing.B) {
 	}
 }
 
-func Benchmark_TzCache(b *testing.B) {
-	c := NewTzCache[int]()
+func BenchmarkCache(b *testing.B) {
+	c := NewCache[int]()
 	for n := 0; n < b.N; n++ {
 		loc, ok := c.Add(n, "America/Los_Angeles")
 		_ = loc
