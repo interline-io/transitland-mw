@@ -40,10 +40,10 @@ github.com/golang/protobuf v1.5.3/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiu
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
-github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d h1:XToGkREjPhy6Ha6yUfKP7P4O2vRKc4xNGUFeo8nshjA=
-github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d/go.mod h1:chJaM8SKcHI6ivoeFuZ8M8axTjSV4TPmuQ+sAyAHa34=
-github.com/interline-io/transitland-dbutil v0.0.0-20241211003846-754ca2a37d9d h1:W9IWIKh6R+m5ueRol8J0mnw3WtuUnxU0J+2qlu+Dd0k=
-github.com/interline-io/transitland-dbutil v0.0.0-20241211003846-754ca2a37d9d/go.mod h1:gcuaCPdtpzopTWKJyRWMDTDFQ59bvX0OUWSccoLCcoQ=
+github.com/interline-io/log v0.0.0-20241212203449-4bcff214cd71 h1:RI4mfj5B0VPK3XznLKTRPzFScySmRDYYp6tACSqZfoE=
+github.com/interline-io/log v0.0.0-20241212203449-4bcff214cd71/go.mod h1:chJaM8SKcHI6ivoeFuZ8M8axTjSV4TPmuQ+sAyAHa34=
+github.com/interline-io/transitland-dbutil v0.0.0-20241212203507-15a69a52c1c4 h1:25yHjhbhKqJI5Gt/16WVQ2m9HtsymVm46UdAm50i/wg=
+github.com/interline-io/transitland-dbutil v0.0.0-20241212203507-15a69a52c1c4/go.mod h1:aPEEJCvUPJoxyzA6sP4/PF4thA+hpafYpUcFBgoKK50=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
