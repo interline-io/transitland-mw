@@ -20,7 +20,8 @@ func init() {
 	var _ meters.MeterProvider = &StripeMeterProvider{}
 }
 
-// StripeMeterProvider implements the MeterProvider interface for Stripe's metering API
+// StripeMeterProvider implements the MeterProvider interface for Stripe's metering API.
+// It handles batching of meter events and automatic session token refresh.
 type StripeMeterProvider struct {
 	client           *client.API
 	interval         time.Duration
@@ -41,7 +42,17 @@ type stripeConfig struct {
 	Dimensions    meters.Dimensions `json:"dimensions,omitempty"`
 }
 
-// NewStripeMeterProvider creates a new Stripe meter provider
+type meterEvent struct {
+	EventName  string
+	CustomerId string
+	Value      float64
+	Dimensions meters.Dimensions
+}
+
+const maxBatchSize = 100
+
+// NewStripeMeterProvider creates a new Stripe meter provider with the given API key
+// and batch interval. It automatically starts a background worker to handle event batching.
 func NewStripeMeterProvider(apiKey string, interval time.Duration) *StripeMeterProvider {
 	config := &stripe.BackendConfig{
 		EnableTelemetry: stripe.Bool(false),
@@ -271,27 +282,35 @@ func (m *StripeMeterProvider) refreshMeterEventSession() error {
 	if m.sessionAuthToken == "" || m.sessionExpiresAt <= currentTime {
 		b, err := stripe.GetRawRequestBackend(stripe.APIBackend)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get stripe backend: %w", err)
 		}
 		client := rawrequest.Client{B: b, Key: m.apiKey}
 
 		// Create a new meter event session
 		rawResp, err := client.RawRequest(http.MethodPost, "/v2/billing/meter_event_session", "", nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create meter event session: %w", err)
 		}
-		if rawResp.StatusCode != 200 {
-			return fmt.Errorf("meter event session request failed: %s", rawResp.Status)
+		if rawResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("meter event session request failed with status %d: %s", rawResp.StatusCode, rawResp.Status)
 		}
 
 		var resp map[string]interface{}
-		err = json.Unmarshal(rawResp.RawJSON, &resp)
-		if err != nil {
-			return err
+		if err := json.Unmarshal(rawResp.RawJSON, &resp); err != nil {
+			return fmt.Errorf("failed to unmarshal session response: %w", err)
 		}
 
-		m.sessionAuthToken = resp["authentication_token"].(string)
-		m.sessionExpiresAt = resp["expires_at"].(string)
+		authToken, ok := resp["authentication_token"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid authentication_token in response")
+		}
+		expiresAt, ok := resp["expires_at"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid expires_at in response")
+		}
+
+		m.sessionAuthToken = authToken
+		m.sessionExpiresAt = expiresAt
 	}
 	return nil
 }
@@ -321,4 +340,47 @@ func (m *StripeMeterProvider) batchWorker() {
 			return
 		}
 	}
+}
+
+func (m *StripeMeterProvider) sendBatch(batch []meterEvent) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	// Refresh session token if needed
+	if err := m.refreshMeterEventSession(); err != nil {
+		return fmt.Errorf("unable to refresh meter event session: %v", err)
+	}
+
+	// Get meter events backend with session token
+	b, err := stripe.GetRawRequestBackend(stripe.MeterEventsBackend)
+	if err != nil {
+		return err
+	}
+	sessionClient := rawrequest.Client{B: b, Key: m.sessionAuthToken}
+
+	// Convert events to API payload
+	eventPayloads := make([]interface{}, len(batch))
+	for i, evt := range batch {
+		eventPayloads[i] = map[string]interface{}{
+			"event_name": evt.EventName,
+			"payload": map[string]interface{}{
+				"stripe_customer_id": evt.CustomerId,
+				"value":              fmt.Sprintf("%f", evt.Value),
+				"metadata":           buildMetadataFromDimensions(nil, evt.Dimensions),
+			},
+		}
+	}
+
+	params := map[string]interface{}{
+		"events": eventPayloads,
+	}
+
+	body, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+
+	_, err = sessionClient.RawRequest(http.MethodPost, "/v2/billing/meter_event_stream", string(body), nil)
+	return err
 }
