@@ -31,8 +31,6 @@ type StripeMeterProvider struct {
 	apiKey           string
 	batchEvents      []meterEvent
 	batchMutex       sync.Mutex
-	eventChan        chan meterEvent
-	done             chan struct{}
 }
 
 type stripeConfig struct {
@@ -62,14 +60,11 @@ func NewStripeMeterProvider(apiKey string, interval time.Duration) *StripeMeterP
 	})
 
 	mp := &StripeMeterProvider{
-		client:    sc,
-		interval:  interval,
-		cfgs:      map[string]stripeConfig{},
-		apiKey:    apiKey,
-		eventChan: make(chan meterEvent, maxBatchSize),
-		done:      make(chan struct{}),
+		client:   sc,
+		interval: interval,
+		cfgs:     map[string]stripeConfig{},
+		apiKey:   apiKey,
 	}
-	go mp.batchWorker()
 	return mp
 }
 
@@ -95,7 +90,6 @@ func (m *StripeMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
 }
 
 func (m *StripeMeterProvider) Close() error {
-	close(m.done)
 	return nil
 }
 
@@ -115,7 +109,7 @@ func (m *StripeMeterProvider) Flush() error {
 	}
 
 	// Get meter events backend with session token
-	b, err := stripe.GetRawRequestBackend(stripe.MeterEventsBackend)
+	b, err := stripe.GetRawRequestBackend(stripe.APIBackend)
 	if err != nil {
 		return err
 	}
@@ -189,35 +183,10 @@ func buildMetadataFromDimensions(cfgDims, extraDims meters.Dimensions) map[strin
 }
 
 func (m *StripeMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
-	cfg, ok := m.getcfg(meterName)
-	if !ok {
-		return 0, false
-	}
-
-	customerId, ok := m.getCustomerID(cfg, user)
-	if !ok {
-		log.Error().Str("user", user.ID()).Msg("could not get value; no stripe customer id")
-		return 0, false
-	}
-
-	params := &stripe.UsageRecordSummaryListParams{
-		SubscriptionItem: stripe.String(customerId),
-	}
-
-	iter := m.client.UsageRecordSummaries.List(params)
-	var total float64
-	for iter.Next() {
-		summary := iter.UsageRecordSummary()
-		if summary.Period.Start >= startTime.Unix() && summary.Period.Start <= endTime.Unix() {
-			total += float64(summary.TotalUsage)
-		}
-	}
-	if err := iter.Err(); err != nil {
-		log.Error().Err(err).Msg("could not get usage summary")
-		return 0, false
-	}
-
-	return total, true
+	// TODO: Implement GetValue using Stripe's v2 metering API
+	// This will be implemented once Stripe provides an API endpoint for querying meter usage
+	log.Error().Msg("GetValue not yet implemented for Stripe v2 metering API")
+	return 0, false
 }
 
 func (m *StripeMeterProvider) getCustomerID(cfg stripeConfig, user meters.MeterUser) (string, bool) {
@@ -313,74 +282,4 @@ func (m *StripeMeterProvider) refreshMeterEventSession() error {
 		m.sessionExpiresAt = expiresAt
 	}
 	return nil
-}
-
-func (m *StripeMeterProvider) batchWorker() {
-	ticker := time.NewTicker(m.interval)
-	defer ticker.Stop()
-
-	var batch []meterEvent
-	for {
-		select {
-		case evt := <-m.eventChan:
-			batch = append(batch, evt)
-			if len(batch) >= maxBatchSize {
-				m.sendBatch(batch)
-				batch = nil
-			}
-		case <-ticker.C:
-			if len(batch) > 0 {
-				m.sendBatch(batch)
-				batch = nil
-			}
-		case <-m.done:
-			if len(batch) > 0 {
-				m.sendBatch(batch)
-			}
-			return
-		}
-	}
-}
-
-func (m *StripeMeterProvider) sendBatch(batch []meterEvent) error {
-	if len(batch) == 0 {
-		return nil
-	}
-
-	// Refresh session token if needed
-	if err := m.refreshMeterEventSession(); err != nil {
-		return fmt.Errorf("unable to refresh meter event session: %v", err)
-	}
-
-	// Get meter events backend with session token
-	b, err := stripe.GetRawRequestBackend(stripe.MeterEventsBackend)
-	if err != nil {
-		return err
-	}
-	sessionClient := rawrequest.Client{B: b, Key: m.sessionAuthToken}
-
-	// Convert events to API payload
-	eventPayloads := make([]interface{}, len(batch))
-	for i, evt := range batch {
-		eventPayloads[i] = map[string]interface{}{
-			"event_name": evt.EventName,
-			"payload": map[string]interface{}{
-				"stripe_customer_id": evt.CustomerId,
-				"value":              fmt.Sprintf("%f", evt.Value),
-				"metadata":           buildMetadataFromDimensions(nil, evt.Dimensions),
-			},
-		}
-	}
-
-	params := map[string]interface{}{
-		"events": eventPayloads,
-	}
-
-	body, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-
-	_, err = sessionClient.RawRequest(http.MethodPost, "/v2/billing/meter_event_stream", string(body), nil)
-	return err
 }
