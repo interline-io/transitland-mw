@@ -183,9 +183,9 @@ func buildMetadataFromDimensions(cfgDims, extraDims meters.Dimensions) map[strin
 }
 
 func (m *StripeMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
-	// TODO: Implement GetValue using Stripe's v2 metering API
-	// This will be implemented once Stripe provides an API endpoint for querying meter usage
-	log.Error().Msg("GetValue not yet implemented for Stripe v2 metering API")
+	// TODO: Implement GetValue using https://docs.stripe.com/api/billing/meter-event-summary
+	// Not needed
+	log.Error().Msg("GetValue not yet implemented")
 	return 0, false
 }
 
