@@ -3,6 +3,7 @@ package stripe
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -216,6 +217,7 @@ func TestStripeMeterWithMock(t *testing.T) {
 			return nil
 		}).Times(1)
 
+		// Verify the correct payload structure with dimensions
 		mockBackend.EXPECT().
 			CallRaw(
 				gomock.Any(),
@@ -224,7 +226,33 @@ func TestStripeMeterWithMock(t *testing.T) {
 				gomock.Any(),
 				gomock.Any(),
 				gomock.Any(),
-			).Return(nil).Times(1)
+			).DoAndReturn(func(_ interface{}, _ interface{}, _ interface{}, body interface{}, _ interface{}, _ interface{}) error {
+			var payload struct {
+				Events []struct {
+					EventName string                 `json:"event_name"`
+					Payload   map[string]interface{} `json:"payload"`
+				} `json:"events"`
+			}
+			if err := json.Unmarshal([]byte(body.(string)), &payload); err != nil {
+				return fmt.Errorf("failed to unmarshal payload: %w", err)
+			}
+			if len(payload.Events) != 1 {
+				return fmt.Errorf("expected 1 event, got %d", len(payload.Events))
+			}
+			evt := payload.Events[0]
+			// Verify event name
+			if evt.EventName != "test_meter" {
+				return fmt.Errorf("expected event_name 'test_meter', got '%s'", evt.EventName)
+			}
+			// Verify payload structure
+			p := evt.Payload
+			if p["stripe_customer_id"] != "customer-123" ||
+				p["value"] != "100.000000" ||
+				p["2"] != "extra_dimension" {
+				return fmt.Errorf("invalid payload: %v", p)
+			}
+			return nil
+		}).Times(1)
 
 		err := mp.sendMeter(testUser, "test_meter", 100, meters.Dimensions{
 			{Key: "2", Value: "extra_dimension"},

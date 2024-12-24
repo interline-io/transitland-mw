@@ -118,13 +118,19 @@ func (m *StripeMeterProvider) Flush() error {
 	// Convert events to API payload
 	eventPayloads := make([]interface{}, len(events))
 	for i, evt := range events {
+		// Build payload with dimensions
+		payload := map[string]interface{}{
+			"stripe_customer_id": evt.CustomerId,
+			"value":              fmt.Sprintf("%f", evt.Value),
+		}
+		// I think we can add extra "dimensions" to payload, but not sure
+		for _, dim := range evt.Dimensions {
+			payload[dim.Key] = dim.Value
+		}
+
 		eventPayloads[i] = map[string]interface{}{
 			"event_name": evt.EventName,
-			"payload": map[string]interface{}{
-				"stripe_customer_id": evt.CustomerId,
-				"value":              fmt.Sprintf("%f", evt.Value),
-				"metadata":           buildMetadataFromDimensions(nil, evt.Dimensions),
-			},
+			"payload":    payload,
 		}
 	}
 
@@ -169,17 +175,6 @@ func (m *StripeMeterProvider) sendMeter(user meters.MeterUser, meterName string,
 		return m.Flush()
 	}
 	return nil
-}
-
-func buildMetadataFromDimensions(cfgDims, extraDims meters.Dimensions) map[string]string {
-	metadata := make(map[string]string)
-	for _, d := range cfgDims {
-		metadata[d.Key] = d.Value
-	}
-	for _, d := range extraDims {
-		metadata[d.Key] = d.Value
-	}
-	return metadata
 }
 
 func (m *StripeMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
