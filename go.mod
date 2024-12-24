@@ -1,12 +1,15 @@
 module github.com/interline-io/transitland-mw
 
-go 1.21.5
+go 1.22
+
+toolchain go1.23.4
 
 require (
 	github.com/amberflo/metering-go/v2 v2.5.0
 	github.com/auth0/go-auth0 v0.17.2
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/golang/mock v1.6.0
 	github.com/interline-io/log v0.0.0-20241212203449-4bcff214cd71
 	github.com/interline-io/transitland-dbutil v0.0.0-20241212203507-15a69a52c1c4
 	github.com/jellydator/ttlcache/v2 v2.11.1
@@ -14,9 +17,11 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
+	github.com/stripe/stripe-go/v81 v81.2.0
 	github.com/tidwall/gjson v1.17.3
 	github.com/tidwall/tinylru v1.2.1
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c
+	go.uber.org/mock v0.5.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 )
