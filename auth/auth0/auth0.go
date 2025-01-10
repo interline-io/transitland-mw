@@ -34,6 +34,9 @@ func (c *Auth0Client) UserByID(ctx context.Context, id string) (authn.User, erro
 }
 
 func (c *Auth0Client) Users(ctx context.Context, userQuery string) ([]authn.User, error) {
+	if len(userQuery) < 3 {
+		return nil, nil
+	}
 	if userQuery != "" {
 		userQuery = fmt.Sprintf(`*%s*`, userQuery)
 	}
