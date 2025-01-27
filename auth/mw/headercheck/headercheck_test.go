@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/interline-io/transitland-mw/auth/authn"
-	"github.com/interline-io/transitland-mw/internal/anchecktest"
+	"github.com/interline-io/transitland-mw/auth/mw/mwtest"
 )
 
 func newCtxUser(id string) authn.CtxUser {
@@ -33,7 +33,7 @@ func TestKongMiddleware(t *testing.T) {
 			if tc.consumerId != "" {
 				req.Header.Add("x-consumer-username", tc.consumerId)
 			}
-			anchecktest.TestAuthMiddleware(t, req, mf, tc.code, tc.user)
+			mwtest.TestAuthMiddleware(t, req, mf, tc.code, tc.user)
 		})
 	}
 }

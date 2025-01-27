@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/interline-io/transitland-mw/internal/metertest"
 	"github.com/interline-io/transitland-mw/meters"
 	localmeter "github.com/interline-io/transitland-mw/meters/local"
+	"github.com/interline-io/transitland-mw/meters/metertest"
 	"github.com/stretchr/testify/assert"
 )
 

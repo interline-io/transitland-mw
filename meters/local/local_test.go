@@ -3,7 +3,7 @@ package local
 import (
 	"testing"
 
-	"github.com/interline-io/transitland-mw/internal/metertest"
+	"github.com/interline-io/transitland-mw/meters/metertest"
 )
 
 func TestLocalMeter(t *testing.T) {
