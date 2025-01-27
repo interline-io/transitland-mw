@@ -1,4 +1,4 @@
-package anchecktest
+package mwtest
 
 import (
 	"net/http"

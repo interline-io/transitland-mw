@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/interline-io/transitland-mw/auth/authn"
-	"github.com/interline-io/transitland-mw/internal/anchecktest"
+	"github.com/interline-io/transitland-mw/auth/mw/mwtest"
 )
 
 func newCtxUser(id string) authn.CtxUser {
@@ -16,13 +16,13 @@ func newCtxUser(id string) authn.CtxUser {
 func TestUserMiddleware(t *testing.T) {
 	a := UserDefaultMiddleware("test")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	anchecktest.TestAuthMiddleware(t, req, a, 200, authn.NewCtxUser("test", "", ""))
+	mwtest.TestAuthMiddleware(t, req, a, 200, authn.NewCtxUser("test", "", ""))
 }
 
 func TestAdminMiddleware(t *testing.T) {
 	a := AdminDefaultMiddleware("test")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	anchecktest.TestAuthMiddleware(t, req, a, 200, authn.NewCtxUser("test", "", "").WithRoles("admin"))
+	mwtest.TestAuthMiddleware(t, req, a, 200, authn.NewCtxUser("test", "", "").WithRoles("admin"))
 }
 
 // func TestNoMiddleware(t *testing.T) {
@@ -52,7 +52,7 @@ func TestUserRequired(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			anchecktest.TestAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
+			mwtest.TestAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
 		})
 	}
 }
@@ -75,7 +75,7 @@ func TestAdminRequired(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			anchecktest.TestAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
+			mwtest.TestAuthMiddleware(t, req, tc.mwf, tc.code, tc.user)
 		})
 	}
 }

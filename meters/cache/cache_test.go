@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/interline-io/transitland-dbutil/testutil"
-	"github.com/interline-io/transitland-mw/internal/metertest"
 	"github.com/interline-io/transitland-mw/meters"
 	limitmeter "github.com/interline-io/transitland-mw/meters/limit"
 	localmeter "github.com/interline-io/transitland-mw/meters/local"
+	"github.com/interline-io/transitland-mw/meters/metertest"
 	"github.com/stretchr/testify/assert"
 )
 

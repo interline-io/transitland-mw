@@ -249,7 +249,7 @@ type amberfloLogger struct {
 }
 
 func (l *amberfloLogger) Log(args ...interface{}) {
-	l.logger.Trace().Msgf("amberflo: " + fmt.Sprint(args...))
+	l.logger.Trace().Msg("amberflo: " + fmt.Sprint(args...))
 }
 
 func (l *amberfloLogger) Logf(format string, args ...interface{}) {

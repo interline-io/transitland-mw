@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/interline-io/transitland-dbutil/testutil"
-	"github.com/interline-io/transitland-mw/internal/metertest"
+	"github.com/interline-io/transitland-mw/meters/metertest"
 )
 
 func TestAmberfloMeter(t *testing.T) {
