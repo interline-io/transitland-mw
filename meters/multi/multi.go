@@ -14,6 +14,12 @@ type MultiMeterProvider struct {
 	meters []meters.MeterProvider
 }
 
+func NewMultiMeterProvider(meters ...meters.MeterProvider) *MultiMeterProvider {
+	return &MultiMeterProvider{
+		meters: meters,
+	}
+}
+
 func (m *MultiMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
 	var mets []meters.ApiMeter
 	for _, m := range m.meters {
@@ -40,12 +46,6 @@ func (m *MultiMeterProvider) Close() error {
 		}
 	}
 	return nil
-}
-
-func (m *MultiMeterProvider) AddDimension(meterName string, key string, value string) {
-	// for _, m := range m.meters {
-	// 	m.AddDimension(meterName, key, value)
-	// }
 }
 
 func (m *MultiMeterProvider) GetValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
