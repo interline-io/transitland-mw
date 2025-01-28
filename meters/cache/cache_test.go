@@ -43,11 +43,13 @@ func TestCacheMeter(t *testing.T) {
 		val, ok := cmpm.GetValue(meterName, t1, t2, nil)
 		_ = ok
 		lastValue = val
-		cmpm.Meter(meterName, 1, nil)
+		if err := cmpm.Meter(meterName, 1, nil); err != nil {
+			t.Error(err)
+		}
 		time.Sleep(1 * time.Second)
 	}
 	assert.Equal(t, 8.0, lastValue)
-	finalVal, _ := mp.GetValue(user, meterName, t1, t2, nil)
+	finalVal, _ := mp.NewMeter(user).GetValue(meterName, t1, t2, nil)
 	assert.Equal(t, 10.0, finalVal)
 }
 
@@ -80,8 +82,15 @@ func TestCacheMeter_Limits(t *testing.T) {
 	limitMp.DefaultLimits = []limitmeter.UserMeterLimit{lim}
 	m := limitMp.NewMeter(user)
 	for i := 0; i < 10; i++ {
-		m.Meter(meterName, 1.0, lim.Dims)
+		if ok, err := m.Check(meterName, 1.0, lim.Dims); ok {
+			if err := m.Meter(meterName, 1.0, lim.Dims); err != nil {
+				t.Error(err)
+			}
+		} else if err != nil {
+			t.Error(err)
+		}
 		time.Sleep(1 * time.Second)
+
 	}
 	// Final value should be between 5 and less than 10
 	t1, t2 := lim.Span()

@@ -48,15 +48,6 @@ func (m *MultiMeterProvider) Close() error {
 	return nil
 }
 
-func (m *MultiMeterProvider) GetValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
-	for _, m := range m.meters {
-		if val, ok := m.GetValue(u, meterName, startTime, endTime, checkDims); ok {
-			return val, ok
-		}
-	}
-	return 0, false
-}
-
 type multiMeterUser struct {
 	mets []meters.ApiMeter
 }
@@ -83,5 +74,13 @@ func (m *multiMeterUser) GetValue(meterName string, startTime time.Time, endTime
 		}
 	}
 	return 0, false
+}
 
+func (m *multiMeterUser) Check(meterName string, value float64, dims meters.Dimensions) (bool, error) {
+	for _, m := range m.mets {
+		if ok, err := m.Check(meterName, value, dims); !ok || err != nil {
+			return ok, err
+		}
+	}
+	return true, nil
 }

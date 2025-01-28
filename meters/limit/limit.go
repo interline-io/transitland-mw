@@ -1,7 +1,6 @@
 package limit
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -59,19 +58,28 @@ func (c *LimitMeter) GetLimits(meterName string, checkDims meters.Dimensions) []
 	return lims
 }
 
-func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
-	if c.provider.Enabled {
-		for _, lim := range c.GetLimits(meterName, extraDimensions) {
-			d1, d2 := lim.Span()
-			currentValue, _ := c.GetValue(meterName, d1, d2, lim.Dims)
-			if currentValue+value > lim.Limit {
-				log.Info().Str("meter", meterName).Str("user", c.userId).Float64("limit", lim.Limit).Float64("current", currentValue).Float64("add", value).Str("dims", fmt.Sprintf("%v", lim.Dims)).Msg("rate limited")
-				return errors.New("rate check: limited")
-			} else {
-				log.Info().Str("meter", meterName).Str("user", c.userId).Float64("limit", lim.Limit).Float64("current", currentValue).Float64("add", value).Str("dims", fmt.Sprintf("%v", lim.Dims)).Msg("rate check: ok")
-			}
+func (c *LimitMeter) Check(meterName string, value float64, extraDimensions meters.Dimensions) (bool, error) {
+	if !c.provider.Enabled {
+		return true, nil
+	}
+	for _, lim := range c.GetLimits(meterName, extraDimensions) {
+		d1, d2 := lim.Span()
+		currentValue, _ := c.GetValue(meterName, d1, d2, lim.Dims)
+		if currentValue+value > lim.Limit {
+			log.TraceCheck(func() {
+				log.Trace().Str("meter", meterName).Str("user", c.userId).Float64("limit", lim.Limit).Float64("current", currentValue).Float64("add", value).Str("dims", fmt.Sprintf("%v", lim.Dims)).Msg("rate limited")
+			})
+			return false, nil
+		} else {
+			log.TraceCheck(func() {
+				log.Trace().Str("meter", meterName).Str("user", c.userId).Float64("limit", lim.Limit).Float64("current", currentValue).Float64("add", value).Str("dims", fmt.Sprintf("%v", lim.Dims)).Msg("rate check: ok")
+			})
 		}
 	}
+	return true, nil
+}
+
+func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
 	return c.ApiMeter.Meter(meterName, value, extraDimensions)
 }
 
