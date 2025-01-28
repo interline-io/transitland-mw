@@ -35,6 +35,18 @@ func (u TestUser) GetExternalData(key string) (string, bool) {
 	return a, ok
 }
 
+func checkErr(t *testing.T, err error) {
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func checkOk(t *testing.T, ok bool) {
+	if !ok {
+		t.Error("expected true")
+	}
+}
+
 type Config struct {
 	TestMeter1 string
 	TestMeter2 string
@@ -49,16 +61,18 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 		m := mp.NewMeter(cfg.User1)
 		v, _ := m.GetValue(cfg.TestMeter1, d1, d2, nil)
 
-		m.Meter(cfg.TestMeter1, 1, nil)
+		checkErr(t, m.Meter(cfg.TestMeter1, 1, nil))
 		mp.Flush()
 
-		a, _ := m.GetValue(cfg.TestMeter1, d1, d2, nil)
+		a, ok := m.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 1.0, a-v)
 
-		m.Meter(cfg.TestMeter1, 1, nil)
+		checkErr(t, m.Meter(cfg.TestMeter1, 1, nil))
 		mp.Flush()
 
-		b, _ := m.GetValue(cfg.TestMeter1, d1, d2, nil)
+		b, ok := m.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 2.0, b-v)
 	})
 	t.Run("NewMeter", func(t *testing.T) {
@@ -67,13 +81,15 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 		v1, _ := m1.GetValue(cfg.TestMeter1, d1, d2, nil)
 		v2, _ := m1.GetValue(cfg.TestMeter2, d1, d2, nil)
 
-		m1.Meter(cfg.TestMeter1, 1, nil)
-		m1.Meter(cfg.TestMeter2, 2, nil)
+		checkErr(t, m1.Meter(cfg.TestMeter1, 1, nil))
+		checkErr(t, m1.Meter(cfg.TestMeter2, 2, nil))
 		mp.Flush()
 
-		va1, _ := m1.GetValue(cfg.TestMeter1, d1, d2, nil)
+		va1, ok := m1.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 1.0, va1-v1)
-		va2, _ := m1.GetValue(cfg.TestMeter2, d1, d2, nil)
+		va2, ok := m1.GetValue(cfg.TestMeter2, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 2.0, va2-v2)
 	})
 	t.Run("GetValue", func(t *testing.T) {
@@ -84,19 +100,22 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 		v2, _ := m2.GetValue(cfg.TestMeter1, d1, d2, nil)
 		v3, _ := m3.GetValue(cfg.TestMeter1, d1, d2, nil)
 
-		m1.Meter(cfg.TestMeter1, 1, nil)
-		m2.Meter(cfg.TestMeter1, 2.0, nil)
+		checkErr(t, m1.Meter(cfg.TestMeter1, 1, nil))
+		checkErr(t, m2.Meter(cfg.TestMeter1, 2.0, nil))
 		mp.Flush()
 
 		a, ok := m1.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 1.0, a-v1)
 		assert.Equal(t, true, ok)
 
 		a, ok = m2.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 2.0, a-v2)
 		assert.Equal(t, true, ok)
 
-		a, _ = m3.GetValue(cfg.TestMeter1, d1, d2, nil)
+		a, ok = m3.GetValue(cfg.TestMeter1, d1, d2, nil)
+		checkOk(t, ok)
 		assert.Equal(t, 0.0, a-v3)
 	})
 
@@ -116,9 +135,9 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 		v3, _ := m3.GetValue(cfg.TestMeter1, d1, d2, checkDims1)
 
 		// m1 meter
-		m1.Meter(cfg.TestMeter1, 1, addDims1)
+		checkErr(t, m1.Meter(cfg.TestMeter1, 1, addDims1))
 		// m2 uses different dimension
-		m2.Meter(cfg.TestMeter1, 2.0, addDims2)
+		checkErr(t, m2.Meter(cfg.TestMeter1, 2.0, addDims2))
 		mp.Flush()
 
 		a, ok := m1.GetValue(cfg.TestMeter1, d1, d2, checkDims1)
@@ -135,5 +154,27 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 
 		a, _ = m3.GetValue(cfg.TestMeter1, d1, d2, checkDims1)
 		assert.Equal(t, 0.0, a-v3)
+	})
+}
+
+// TestMeterWrite is a helper function for testing the MeterProvider interface for writing.
+// It only tests that writes are successful and do not generate errors.
+func TestMeterWrite(t *testing.T, mp MeterProvider, cfg Config) {
+	t.Run("Meter", func(t *testing.T) {
+		m := mp.NewMeter(cfg.User1)
+		if err := m.Meter(cfg.TestMeter1, 1, nil); err != nil {
+			t.Error(err)
+		}
+		mp.Flush()
+	})
+	t.Run("NewMeter", func(t *testing.T) {
+		m1 := mp.NewMeter(cfg.User1)
+		if err := m1.Meter(cfg.TestMeter1, 1, nil); err != nil {
+			t.Error(err)
+		}
+		if err := m1.Meter(cfg.TestMeter2, 2, nil); err != nil {
+			t.Error(err)
+		}
+		mp.Flush()
 	})
 }
