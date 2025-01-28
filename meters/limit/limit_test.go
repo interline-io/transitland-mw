@@ -130,10 +130,12 @@ func testLimitMeter(t *testing.T, cmp *LimitMeterProvider, meterName string, use
 	cmp.MeterProvider.Flush()
 
 	// push past limit
-	if ok, err := m.Check(meterName, incr+lim.Limit, lim.Dims); err == nil {
+	ok, err := m.Check(meterName, incr+lim.Limit, lim.Dims)
+	if err != nil {
 		t.Error(err)
-	} else if ok {
-		t.Error("expected error, got none")
+	}
+	if ok {
+		t.Error("expected not ok")
 	}
 
 	// Check updated value
