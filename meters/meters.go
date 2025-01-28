@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
 )
 
@@ -15,10 +16,11 @@ type ApiMeter interface {
 	Meter(string, float64, Dimensions) error
 	AddDimension(string, string, string)
 	GetValue(string, time.Time, time.Time, Dimensions) (float64, bool)
+	Check(string, float64, Dimensions) (bool, error)
 }
 
 type MeterProvider interface {
-	GetValue(MeterUser, string, time.Time, time.Time, Dimensions) (float64, bool)
+	// GetValue(MeterUser, string, time.Time, time.Time, Dimensions) (float64, bool)
 	NewMeter(MeterUser) ApiMeter
 	Close() error
 	Flush() error
@@ -29,18 +31,47 @@ type MeterUser interface {
 	GetExternalData(string) (string, bool)
 }
 
+type responseWriterWrapper struct {
+	statusCode int
+	http.ResponseWriter
+}
+
+func (w *responseWriterWrapper) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
 func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dims Dimensions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Wrap ResponseWriter so we can check status code
+			wr := &responseWriterWrapper{ResponseWriter: w}
+
 			// Make ctxMeter available in context
 			ctx := r.Context()
 			ctxMeter := apiMeter.NewMeter(authn.ForContext(ctx))
 			r = r.WithContext(context.WithValue(ctx, meterCtxKey, ctxMeter))
-			if err := ctxMeter.Meter(meterName, meterValue, dims); err != nil {
+
+			// Check if we are within available rate limits
+			meterCheck, meterErr := ctxMeter.Check(meterName, meterValue, dims)
+			if meterErr != nil {
+				log.Error().Err(meterErr).Msg("meter check error")
+			}
+			if !meterCheck {
 				http.Error(w, "429", http.StatusTooManyRequests)
 				return
 			}
-			next.ServeHTTP(w, r)
+
+			// Call next handler
+			next.ServeHTTP(wr, r)
+
+			// Meter the event if status code is less than 400
+			if wr.statusCode >= 400 {
+				return
+			}
+			if err := ctxMeter.Meter(meterName, meterValue, dims); err != nil {
+				log.Error().Err(err).Msg("meter error")
+			}
 		})
 	}
 }

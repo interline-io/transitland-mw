@@ -162,19 +162,13 @@ func TestMeter(t *testing.T, mp MeterProvider, cfg Config) {
 func TestMeterWrite(t *testing.T, mp MeterProvider, cfg Config) {
 	t.Run("Meter", func(t *testing.T) {
 		m := mp.NewMeter(cfg.User1)
-		if err := m.Meter(cfg.TestMeter1, 1, nil); err != nil {
-			t.Error(err)
-		}
+		checkErr(t, m.Meter(cfg.TestMeter1, 1, nil))
 		mp.Flush()
 	})
 	t.Run("NewMeter", func(t *testing.T) {
 		m1 := mp.NewMeter(cfg.User1)
-		if err := m1.Meter(cfg.TestMeter1, 1, nil); err != nil {
-			t.Error(err)
-		}
-		if err := m1.Meter(cfg.TestMeter2, 2, nil); err != nil {
-			t.Error(err)
-		}
+		checkErr(t, m1.Meter(cfg.TestMeter1, 1, nil))
+		checkErr(t, m1.Meter(cfg.TestMeter2, 2, nil))
 		mp.Flush()
 	})
 }

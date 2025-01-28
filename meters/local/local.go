@@ -64,7 +64,7 @@ func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, val
 	return nil
 }
 
-func (m *LocalMeterProvider) GetValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
+func (m *LocalMeterProvider) getValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -123,7 +123,11 @@ func (m *localUserMeter) AddDimension(meterName string, key string, value string
 }
 
 func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
-	return m.mp.GetValue(m.user, meterName, startTime, endTime, dims)
+	return m.mp.getValue(m.user, meterName, startTime, endTime, dims)
+}
+
+func (m *localUserMeter) Check(meterName string, value float64, dims meters.Dimensions) (bool, error) {
+	return true, nil
 }
 
 ///////////

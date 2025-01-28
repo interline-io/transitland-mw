@@ -64,7 +64,9 @@ func NewCacheMeterProvider(provider meters.MeterProvider, topic string, redisCli
 
 	// Refresh function
 	refreshFn := func(ctx context.Context, key CacheMeterKey) (CacheMeterData, error) {
-		log.Info().Str("key", key.User).Msg("rechecking meter")
+		log.TraceCheck(func() {
+			log.Trace().Str("key", key.User).Msg("rechecking meter")
+		})
 
 		// Get user
 		up.lock.Lock()
@@ -75,15 +77,15 @@ func NewCacheMeterProvider(provider meters.MeterProvider, topic string, redisCli
 		}
 
 		// Get value
-		val, ok := provider.GetValue(
-			user,
+		val, ok := provider.NewMeter(user).GetValue(
 			key.MeterName,
 			time.Unix(key.Start, 0),
 			time.Unix(key.End, 0),
 			nil,
 		)
-		log.Info().Str("key", key.User).Float64("value", val).Bool("ok", ok).Msg("rechecking meter result")
-
+		log.TraceCheck(func() {
+			log.Trace().Str("key", key.User).Float64("value", val).Bool("ok", ok).Msg("rechecking meter result")
+		})
 		return CacheMeterData{Value: val}, nil
 	}
 
@@ -111,7 +113,7 @@ func (c *CacheMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
 	}
 }
 
-func (m *CacheMeterProvider) GetValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+func (m *CacheMeterProvider) getValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	// Horrible hack: pass user by string
 	m.users.lock.Lock()
 	m.users.users[user.ID()] = user
@@ -139,5 +141,5 @@ type CacheMeter struct {
 }
 
 func (m *CacheMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
-	return m.provider.GetValue(m.user, meterName, startTime, endTime, dims)
+	return m.provider.getValue(m.user, meterName, startTime, endTime, dims)
 }
