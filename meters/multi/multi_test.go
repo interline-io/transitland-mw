@@ -28,7 +28,7 @@ func TestMultiMeter(t *testing.T) {
 	mp2m := mp2.NewMeter(testConfig.User2)
 	mp2m.Meter(testConfig.TestMeter1, u2m1, nil)
 
-	mp := &MultiMeter{
+	mp := &MultiMeterProvider{
 		meters: []meters.MeterProvider{mp1, mp2},
 	}
 	metertest.TestMeter(t, mp, testConfig)
