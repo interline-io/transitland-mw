@@ -30,12 +30,12 @@ func JWTMiddleware(jwtAudience string, jwtIssuer string, pubKeyPath string, useE
 				claims, err := validateJwt(verifyKey, jwtAudience, jwtIssuer, tokenString[1])
 				if err != nil {
 					log.Error().Err(err).Msgf("invalid jwt token")
-					http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+					writeJsonError(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 					return
 				}
 				if claims == nil {
 					log.Error().Err(err).Msgf("no claims")
-					http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+					writeJsonError(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 					return
 				}
 				userId := claims.Subject
@@ -77,10 +77,12 @@ func validateJwt(rsaPublicKey *rsa.PublicKey, jwtAudience string, jwtIssuer stri
 	return claims, nil
 }
 
-func makeJsonError(msg string) string {
+func writeJsonError(w http.ResponseWriter, msg string, statusCode int) {
 	a := map[string]string{
 		"error": msg,
 	}
 	jj, _ := json.Marshal(&a)
-	return string(jj)
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write(jj)
 }

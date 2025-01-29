@@ -44,7 +44,7 @@ func RoleRequired(role string) func(http.Handler) http.Handler {
 			ctx := r.Context()
 			user := authn.ForContext(ctx)
 			if user == nil || !user.HasRole(role) {
-				http.Error(w, makeJsonError(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+				writeJsonError(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -52,10 +52,34 @@ func RoleRequired(role string) func(http.Handler) http.Handler {
 	}
 }
 
-func makeJsonError(msg string) string {
+func AnyRoleRequired(roles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			user := authn.ForContext(ctx)
+			foundRole := false
+			if user != nil {
+				for _, role := range roles {
+					if user.HasRole(role) {
+						foundRole = true
+					}
+				}
+			}
+			if !foundRole {
+				writeJsonError(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func writeJsonError(w http.ResponseWriter, msg string, statusCode int) {
 	a := map[string]string{
 		"error": msg,
 	}
 	jj, _ := json.Marshal(&a)
-	return string(jj)
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write(jj)
 }
