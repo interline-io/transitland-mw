@@ -42,7 +42,7 @@ func JWTMiddleware(jwtAudience string, jwtIssuer string, pubKeyPath string, useE
 				if useEmailAsId {
 					userId = claims.Email
 				}
-				jwtUser := authn.NewCtxUser(userId, claims.Subject, claims.Email)
+				jwtUser := authn.NewCtxUser(userId, claims.Subject, claims.Email).WithRoles("has_jwt")
 				r = r.WithContext(authn.WithUser(r.Context(), jwtUser))
 			}
 			next.ServeHTTP(w, r)
