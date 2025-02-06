@@ -26,9 +26,14 @@ func NewLimitMeterProvider(provider meters.MeterProvider) *LimitMeterProvider {
 }
 
 func (c *LimitMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
-	userData, _ := u.GetExternalData("gatekeeper")
+	userName := ""
+	userData := ""
+	if u != nil {
+		userName = u.ID()
+		userData, _ = u.GetExternalData("gatekeeper")
+	}
 	return &LimitMeter{
-		userId:   u.ID(),
+		userId:   userName,
 		userData: userData,
 		provider: c,
 		ApiMeter: c.MeterProvider.NewMeter(u),

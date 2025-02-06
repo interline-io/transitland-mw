@@ -113,16 +113,21 @@ func (c *CacheMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
 	}
 }
 
-func (m *CacheMeterProvider) getValue(user meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+func (m *CacheMeterProvider) getValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+	if u == nil {
+		return 0, false
+	}
+
 	// Horrible hack: pass user by string
+	userName := u.ID()
 	m.users.lock.Lock()
-	m.users.users[user.ID()] = user
+	m.users.users[userName] = u
 	m.users.lock.Unlock()
 
 	// Lookup in cache
 	dbuf, _ := json.Marshal(dims)
 	key := CacheMeterKey{
-		User:      user.ID(),
+		User:      userName,
 		MeterName: meterName,
 		Start:     startTime.Unix(),
 		End:       endTime.Unix(),

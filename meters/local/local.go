@@ -39,6 +39,11 @@ func (m *LocalMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
 }
 
 func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, value float64, dims []meters.Dimension) error {
+	if u == nil {
+		return nil
+	}
+	userName := u.ID()
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -46,10 +51,7 @@ func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, val
 		a = localMeterUserEvents{}
 		m.values[meterName] = a
 	}
-	userName := ""
-	if u != nil {
-		userName = u.ID()
-	}
+
 	event := localMeterEvent{
 		value: value,
 		time:  time.Now().In(time.UTC),
@@ -65,6 +67,10 @@ func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, val
 }
 
 func (m *LocalMeterProvider) getValue(u meters.MeterUser, meterName string, startTime time.Time, endTime time.Time, checkDims meters.Dimensions) (float64, bool) {
+	if u == nil {
+		return 0, false
+	}
+	userName := u.ID()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	a, ok := m.values[meterName]
@@ -72,7 +78,7 @@ func (m *LocalMeterProvider) getValue(u meters.MeterUser, meterName string, star
 		return 0, false
 	}
 	total := 0.0
-	for _, userEvent := range a[u.ID()] {
+	for _, userEvent := range a[userName] {
 		match := true
 		if userEvent.time.Equal(endTime) || userEvent.time.After(endTime) {
 			// fmt.Println("not matched on end time", userEvent.time, endTime)
