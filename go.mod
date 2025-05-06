@@ -7,7 +7,7 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20250425230611-851ec713ec98
-	github.com/interline-io/transitland-dbutil v0.0.0-20250425231011-bc1a790f47e7
+	github.com/interline-io/transitland-dbutil v0.0.0-20250506013203-964770296cd6
 	github.com/jellydator/ttlcache/v2 v2.11.1
 	github.com/openfga/go-sdk v0.2.3
 	github.com/prometheus/client_golang v1.17.0
@@ -47,7 +47,7 @@ require (
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
