@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/interline-io/transitland-dbutil/testutil"
+	"github.com/interline-io/transitland-mw/testutil"
 	"github.com/stretchr/testify/assert"
 )
 

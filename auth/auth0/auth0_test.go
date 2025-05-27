@@ -3,7 +3,7 @@ package auth0
 import (
 	"testing"
 
-	"github.com/interline-io/transitland-dbutil/testutil"
+	"github.com/interline-io/transitland-mw/testutil"
 )
 
 func TestAuth0Client(t *testing.T) {
