@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/interline-io/transitland-mw/internal/jobtest"
 	"github.com/interline-io/transitland-mw/jobs"
+	"github.com/interline-io/transitland-mw/jobs/jobtest"
 	"github.com/interline-io/transitland-mw/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

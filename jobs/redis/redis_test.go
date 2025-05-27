@@ -3,8 +3,8 @@ package jobs
 import (
 	"testing"
 
-	"github.com/interline-io/transitland-mw/internal/jobtest"
 	"github.com/interline-io/transitland-mw/jobs"
+	"github.com/interline-io/transitland-mw/jobs/jobtest"
 	"github.com/interline-io/transitland-mw/testutil"
 )
 
