@@ -49,15 +49,23 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 
 			// Make ctxMeter available in context
 			ctx := r.Context()
-			ctxMeter := apiMeter.NewMeter(authn.ForContext(ctx))
+			ctxUser := authn.ForContext(ctx)
+			meterLog := log.With().
+				Str("user", ctxUser.ID()).
+				Str("meter", meterName).
+				Float64("meter_value", meterValue).
+				Logger()
+
+			ctxMeter := apiMeter.NewMeter(ctxUser)
 			r = r.WithContext(context.WithValue(ctx, meterCtxKey, ctxMeter))
 
 			// Check if we are within available rate limits
 			meterCheck, meterErr := ctxMeter.Check(meterName, meterValue, dims)
 			if meterErr != nil {
-				log.Error().Err(meterErr).Msg("meter check error")
+				meterLog.Error().Err(meterErr).Msg("meter check error")
 			}
 			if !meterCheck {
+				meterLog.Trace().Msg("not metering event due to rate limit 429")
 				http.Error(w, "429", http.StatusTooManyRequests)
 				return
 			}
@@ -67,10 +75,11 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 
 			// Meter the event if status code is less than 400
 			if wr.statusCode >= 400 {
+				meterLog.Trace().Int("code", wr.statusCode).Msg("not metering event due to status code")
 				return
 			}
 			if err := ctxMeter.Meter(meterName, meterValue, dims); err != nil {
-				log.Error().Err(err).Msg("meter error")
+				meterLog.Error().Err(err).Msg("failed to meter event")
 			}
 		})
 	}
