@@ -13,7 +13,7 @@ import (
 var meterCtxKey = struct{ name string }{"apiMeter"}
 
 type ApiMeter interface {
-	Meter(string, float64, Dimensions) error
+	Meter(string, float64, Dimensions, string) error
 	AddDimension(string, string, string)
 	GetValue(string, time.Time, time.Time, Dimensions) (float64, bool)
 	Check(string, float64, Dimensions) (bool, error)
@@ -78,7 +78,11 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 				meterLog.Trace().Int("code", wr.statusCode).Msg("not metering event due to status code")
 				return
 			}
-			if err := ctxMeter.Meter(meterName, meterValue, dims); err != nil {
+
+			// Get request ID from context
+			reqID := log.GetReqID(r.Context())
+
+			if err := ctxMeter.Meter(meterName, meterValue, dims, reqID); err != nil {
 				meterLog.Error().Err(err).Msg("failed to meter event")
 			}
 		})
