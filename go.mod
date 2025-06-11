@@ -8,7 +8,7 @@ require (
 	github.com/digitalocean/go-workers2 v0.10.4
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/interline-io/log v0.0.0-20250425230611-851ec713ec98
+	github.com/interline-io/log v0.0.0-20250611220650-b7683730abe1
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/jellydator/ttlcache/v2 v2.11.1
 	github.com/jmoiron/sqlx v1.4.0
