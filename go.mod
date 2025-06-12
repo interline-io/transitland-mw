@@ -8,6 +8,7 @@ require (
 	github.com/digitalocean/go-workers2 v0.10.4
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/google/uuid v1.3.1
 	github.com/interline-io/log v0.0.0-20250611220650-b7683730abe1
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/jellydator/ttlcache/v2 v2.11.1
@@ -34,7 +35,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.3.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

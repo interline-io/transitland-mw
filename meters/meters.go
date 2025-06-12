@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/interline-io/log"
 	"github.com/interline-io/transitland-mw/auth/authn"
 )
 
 // MeterEvent represents a metered event with a name, value, timestamp, dimensions, and request ID.
 type MeterEvent struct {
+	EventID    string
 	Name       string
 	Value      float64
 	Timestamp  time.Time
@@ -24,6 +26,7 @@ type MeterEvent struct {
 // NewMeterEvent creates a new MeterEvent with the current time in UTC.
 func NewMeterEvent(name string, value float64, dims Dimensions) MeterEvent {
 	return MeterEvent{
+		EventID:    uuid.New().String(),
 		Name:       name,
 		Value:      value,
 		Timestamp:  time.Now().In(time.UTC),
@@ -32,11 +35,10 @@ func NewMeterEvent(name string, value float64, dims Dimensions) MeterEvent {
 }
 
 // MeterRecorder is an interface for recording metered events.
-// WithDimenions returns a new MeterRecorder with the specified dimension.
-// which will be applied to all subsequent events recorded by this MeterRecorder.
+// ApplyDimension mutates the MeterRecorder and adds a dimension that will be applied to all future Meter calls.
 type MeterRecorder interface {
 	Meter(context.Context, MeterEvent) error
-	WithDimension(key, value string) MeterRecorder
+	ApplyDimension(key, value string)
 }
 
 // MeterReader is an interface for reading metered values and checking rate limits.
@@ -98,8 +100,8 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 				Logger()
 
 			ctxMeter := apiMeter.NewMeter(ctxUser)
-			r = r.WithContext(InjectContext(ctx, ctxMeter))
-
+			ctx = InjectContext(ctx, ctxMeter)
+			r = r.WithContext(ctx)
 			// Check if we are within available rate limits
 			meterCheck, meterErr := ctxMeter.Check(ctx, meterName, meterValue, dims)
 			if meterErr != nil {
@@ -110,7 +112,6 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 				http.Error(w, "429", http.StatusTooManyRequests)
 				return
 			}
-
 			// Call next handler
 			next.ServeHTTP(wr, r)
 
@@ -119,8 +120,7 @@ func WithMeter(apiMeter MeterProvider, meterName string, meterValue float64, dim
 			event.RequestID = log.GetReqID(r.Context())
 			event.StatusCode = wr.statusCode
 			event.Success = wr.statusCode < 400
-
-			// Fetch meterer again from context, as it may have been modified by the next handler
+			// Fetch meterer again from context
 			if err := ForContext(ctx).Meter(ctx, event); err != nil {
 				meterLog.Error().Err(err).Msg("failed to meter event")
 			}
@@ -140,12 +140,12 @@ func (w *responseWriterWrapper) WriteHeader(statusCode int) {
 
 var meterCtxKey = struct{ name string }{"apiMeter"}
 
-func InjectContext(ctx context.Context, m Meterer) context.Context {
+func InjectContext(ctx context.Context, m MeterRecorder) context.Context {
 	return context.WithValue(ctx, meterCtxKey, m)
 }
 
-func ForContext(ctx context.Context) Meterer {
-	raw, _ := ctx.Value(meterCtxKey).(Meterer)
+func ForContext(ctx context.Context) MeterRecorder {
+	raw, _ := ctx.Value(meterCtxKey).(MeterRecorder)
 	return raw
 }
 

@@ -62,14 +62,10 @@ func (m *multiMeterUser) Meter(ctx context.Context, meterEvent meters.MeterEvent
 	return nil
 }
 
-func (m *multiMeterUser) WithDimension(key string, value string) meters.MeterRecorder {
-	m2 := &multiMeterUser{
-		mets: make([]meters.MeterRecorder, len(m.mets)),
-	}
+func (m *multiMeterUser) ApplyDimension(key string, value string) {
 	for i := range m.mets {
-		m2.mets = append(m2.mets, m.mets[i].WithDimension(key, value))
+		m.mets[i].ApplyDimension(key, value)
 	}
-	return m2
 }
 
 func (m *multiMeterUser) GetValue(ctx context.Context, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {

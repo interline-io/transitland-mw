@@ -59,11 +59,16 @@ func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterEvent meters.Met
 		time:  time.Now().In(time.UTC),
 	}
 	a[userName] = append(a[userName], event)
-	log.Trace().
-		Str("user", userName).
-		Str("meter", meterEvent.Name).
-		Float64("meter_value", meterEvent.Value).
-		Msg("meter")
+	log.TraceCheck(func() {
+		lm := log.Trace().
+			Str("user", userName).
+			Str("meter", meterEvent.Name).
+			Float64("meter_value", meterEvent.Value)
+		for _, dim := range meterEvent.Dimensions {
+			lm = lm.Str("dim:"+dim.Key, dim.Value)
+		}
+		lm.Msg("meter")
+	})
 	return nil
 }
 
@@ -123,14 +128,8 @@ func (m *localUserMeter) Meter(ctx context.Context, meterEvent meters.MeterEvent
 	return m.mp.sendMeter(m.user, meterEvent)
 }
 
-func (m *localUserMeter) WithDimension(key string, value string) meters.MeterRecorder {
-	newMeter := &localUserMeter{
-		user: m.user,
-		mp:   m.mp,
-	}
-	newMeter.addDims = append(newMeter.addDims, m.addDims...)
-	newMeter.addDims = append(m.addDims, eventAddDim{Key: key, Value: value})
-	return newMeter
+func (m *localUserMeter) ApplyDimension(key string, value string) {
+	m.addDims = append(m.addDims, eventAddDim{Key: key, Value: value})
 }
 
 func (m *localUserMeter) GetValue(ctx context.Context, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
