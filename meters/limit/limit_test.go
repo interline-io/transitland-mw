@@ -1,6 +1,7 @@
 package limit
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -118,19 +119,20 @@ func testLims(meterName string) []UserMeterLimit {
 }
 
 func testLimitMeter(t *testing.T, cmp *LimitMeterProvider, meterName string, user metertest.TestUser, lim UserMeterLimit) {
+	ctx := context.Background()
 	incr := 1.0
 	m := cmp.NewMeter(user)
 	startTime, endTime := lim.Span()
-	base, _ := m.GetValue(meterName, startTime, endTime, lim.Dims)
+	base, _ := m.GetValue(ctx, meterName, startTime, endTime, lim.Dims)
 
 	// Probably ok
-	if err := m.Meter(meterName, incr, lim.Dims); err != nil {
+	if err := m.Meter(ctx, meters.NewMeterEvent(meterName, incr, lim.Dims)); err != nil {
 		t.Error(err)
 	}
 	cmp.MeterProvider.Flush()
 
 	// push past limit
-	ok, err := m.Check(meterName, incr+lim.Limit, lim.Dims)
+	ok, err := m.Check(ctx, meterName, incr+lim.Limit, lim.Dims)
 	if err != nil {
 		t.Error(err)
 	}
@@ -139,6 +141,6 @@ func testLimitMeter(t *testing.T, cmp *LimitMeterProvider, meterName string, use
 	}
 
 	// Check updated value
-	total, _ := m.GetValue(meterName, startTime, endTime, lim.Dims)
+	total, _ := m.GetValue(ctx, meterName, startTime, endTime, lim.Dims)
 	assert.Equal(t, base+incr, total, "expected total")
 }

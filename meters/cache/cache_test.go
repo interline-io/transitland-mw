@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 )
 
 func TestCacheMeter(t *testing.T) {
+	ctx := context.Background()
 	// redis jobs and cache
 	if a, ok := testutil.CheckTestRedisClient(); !ok {
 		t.Skip(a)
@@ -40,20 +42,21 @@ func TestCacheMeter(t *testing.T) {
 	cmpm := cmp.NewMeter(user)
 	lastValue := 0.0
 	for i := 0; i < 10; i++ {
-		val, ok := cmpm.GetValue(meterName, t1, t2, nil)
+		val, ok := cmpm.GetValue(ctx, meterName, t1, t2, nil)
 		_ = ok
 		lastValue = val
-		if err := cmpm.Meter(meterName, 1, nil); err != nil {
+		if err := cmpm.Meter(ctx, meters.NewMeterEvent(meterName, 1, nil)); err != nil {
 			t.Error(err)
 		}
 		time.Sleep(1 * time.Second)
 	}
 	assert.Equal(t, 8.0, lastValue)
-	finalVal, _ := mp.NewMeter(user).GetValue(meterName, t1, t2, nil)
+	finalVal, _ := mp.NewMeter(user).GetValue(ctx, meterName, t1, t2, nil)
 	assert.Equal(t, 10.0, finalVal)
 }
 
 func TestCacheMeter_Limits(t *testing.T) {
+	ctx := context.Background()
 	if a, ok := testutil.CheckTestRedisClient(); !ok {
 		t.Skip(a)
 		return
@@ -82,8 +85,8 @@ func TestCacheMeter_Limits(t *testing.T) {
 	limitMp.DefaultLimits = []limitmeter.UserMeterLimit{lim}
 	m := limitMp.NewMeter(user)
 	for i := 0; i < 10; i++ {
-		if ok, err := m.Check(meterName, 1.0, lim.Dims); ok {
-			if err := m.Meter(meterName, 1.0, lim.Dims); err != nil {
+		if ok, err := m.Check(ctx, meterName, 1.0, lim.Dims); ok {
+			if err := m.Meter(ctx, meters.NewMeterEvent(meterName, 1.0, lim.Dims)); err != nil {
 				t.Error(err)
 			}
 		} else if err != nil {
@@ -94,7 +97,7 @@ func TestCacheMeter_Limits(t *testing.T) {
 	}
 	// Final value should be between 5 and less than 10
 	t1, t2 := lim.Span()
-	finalVal, _ := m.GetValue(meterName, t1, t2, lim.Dims)
+	finalVal, _ := m.GetValue(ctx, meterName, t1, t2, lim.Dims)
 	assert.GreaterOrEqual(t, finalVal, 5.0, "expected >=5")
 	assert.Less(t, finalVal, 10.0, "expected <10")
 }

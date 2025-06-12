@@ -1,6 +1,7 @@
 package multi
 
 import (
+	"context"
 	"time"
 
 	"github.com/interline-io/transitland-mw/meters"
@@ -20,8 +21,8 @@ func NewMultiMeterProvider(meters ...meters.MeterProvider) *MultiMeterProvider {
 	}
 }
 
-func (m *MultiMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
-	var mets []meters.ApiMeter
+func (m *MultiMeterProvider) NewMeter(user meters.MeterUser) meters.Meterer {
+	var mets []meters.MeterRecorder
 	for _, m := range m.meters {
 		mets = append(mets, m.NewMeter(user))
 	}
@@ -49,36 +50,44 @@ func (m *MultiMeterProvider) Close() error {
 }
 
 type multiMeterUser struct {
-	mets []meters.ApiMeter
+	mets []meters.MeterRecorder
 }
 
-func (m *multiMeterUser) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
+func (m *multiMeterUser) Meter(ctx context.Context, meterEvent meters.MeterEvent) error {
 	for _, m := range m.mets {
-		if err := m.Meter(meterName, value, extraDimensions); err != nil {
+		if err := m.Meter(ctx, meterEvent); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *multiMeterUser) AddDimension(meterName string, key string, value string) {
-	for _, m := range m.mets {
-		m.AddDimension(meterName, key, value)
+func (m *multiMeterUser) ApplyDimension(key string, value string) {
+	for i := range m.mets {
+		m.mets[i].ApplyDimension(key, value)
 	}
 }
 
-func (m *multiMeterUser) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+func (m *multiMeterUser) GetValue(ctx context.Context, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	for _, m := range m.mets {
-		if val, ok := m.GetValue(meterName, startTime, endTime, dims); ok {
+		m2, ok := m.(meters.MeterReader)
+		if !ok {
+			continue // Skip if the meter does not implement MeterReader
+		}
+		if val, ok := m2.GetValue(ctx, meterName, startTime, endTime, dims); ok {
 			return val, ok
 		}
 	}
 	return 0, false
 }
 
-func (m *multiMeterUser) Check(meterName string, value float64, dims meters.Dimensions) (bool, error) {
+func (m *multiMeterUser) Check(ctx context.Context, meterName string, value float64, dims meters.Dimensions) (bool, error) {
 	for _, m := range m.mets {
-		if ok, err := m.Check(meterName, value, dims); !ok || err != nil {
+		m2, ok := m.(meters.MeterReader)
+		if !ok {
+			continue // Skip if the meter does not implement MeterReader
+		}
+		if ok, err := m2.Check(ctx, meterName, value, dims); !ok || err != nil {
 			return ok, err
 		}
 	}

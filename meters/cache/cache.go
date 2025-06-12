@@ -78,6 +78,7 @@ func NewCacheMeterProvider(provider meters.MeterProvider, topic string, redisCli
 
 		// Get value
 		val, ok := provider.NewMeter(user).GetValue(
+			ctx,
 			key.MeterName,
 			time.Unix(key.Start, 0),
 			time.Unix(key.End, 0),
@@ -105,11 +106,11 @@ func NewCacheMeterProvider(provider meters.MeterProvider, topic string, redisCli
 	}
 }
 
-func (c *CacheMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
+func (c *CacheMeterProvider) NewMeter(u meters.MeterUser) meters.Meterer {
 	return &CacheMeter{
 		user:     u,
 		provider: c,
-		ApiMeter: c.MeterProvider.NewMeter(u),
+		Meterer:  c.MeterProvider.NewMeter(u),
 	}
 }
 
@@ -142,9 +143,9 @@ func (m *CacheMeterProvider) getValue(u meters.MeterUser, meterName string, star
 type CacheMeter struct {
 	user     meters.MeterUser
 	provider *CacheMeterProvider
-	meters.ApiMeter
+	meters.Meterer
 }
 
-func (m *CacheMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+func (m *CacheMeter) GetValue(ctx context.Context, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.provider.getValue(m.user, meterName, startTime, endTime, dims)
 }

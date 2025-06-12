@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -31,14 +32,14 @@ func (m *LocalMeterProvider) Close() error {
 	return nil
 }
 
-func (m *LocalMeterProvider) NewMeter(user meters.MeterUser) meters.ApiMeter {
+func (m *LocalMeterProvider) NewMeter(user meters.MeterUser) meters.Meterer {
 	return &localUserMeter{
 		user: user,
 		mp:   m,
 	}
 }
 
-func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, value float64, dims []meters.Dimension) error {
+func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterEvent meters.MeterEvent) error {
 	if u == nil {
 		return nil
 	}
@@ -46,23 +47,28 @@ func (m *LocalMeterProvider) sendMeter(u meters.MeterUser, meterName string, val
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	a, ok := m.values[meterName]
+	a, ok := m.values[meterEvent.Name]
 	if !ok {
 		a = localMeterUserEvents{}
-		m.values[meterName] = a
+		m.values[meterEvent.Name] = a
 	}
 
 	event := localMeterEvent{
-		value: value,
+		value: meterEvent.Value,
+		dims:  meterEvent.Dimensions,
 		time:  time.Now().In(time.UTC),
-		dims:  dims,
 	}
 	a[userName] = append(a[userName], event)
-	log.Trace().
-		Str("user", userName).
-		Str("meter", meterName).
-		Float64("meter_value", value).
-		Msg("meter")
+	log.TraceCheck(func() {
+		lm := log.Trace().
+			Str("user", userName).
+			Str("meter", meterEvent.Name).
+			Float64("meter_value", meterEvent.Value)
+		for _, dim := range meterEvent.Dimensions {
+			lm = lm.Str("dim:"+dim.Key, dim.Value)
+		}
+		lm.Msg("meter")
+	})
 	return nil
 }
 
@@ -101,9 +107,8 @@ func (m *LocalMeterProvider) getValue(u meters.MeterUser, meterName string, star
 }
 
 type eventAddDim struct {
-	MeterName string
-	Key       string
-	Value     string
+	Key   string
+	Value string
 }
 
 type localUserMeter struct {
@@ -112,27 +117,26 @@ type localUserMeter struct {
 	mp      *LocalMeterProvider
 }
 
-func (m *localUserMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
+func (m *localUserMeter) Meter(ctx context.Context, meterEvent meters.MeterEvent) error {
 	// Copy in matching dimensions set through AddDimension
 	var eventDims []meters.Dimension
+	eventDims = append(eventDims, meterEvent.Dimensions...)
 	for _, addDim := range m.addDims {
-		if addDim.MeterName == meterName {
-			eventDims = append(eventDims, meters.Dimension{Key: addDim.Key, Value: addDim.Value})
-		}
+		eventDims = append(eventDims, meters.Dimension{Key: addDim.Key, Value: addDim.Value})
 	}
-	eventDims = append(eventDims, extraDimensions...)
-	return m.mp.sendMeter(m.user, meterName, value, eventDims)
+	meterEvent.Dimensions = eventDims
+	return m.mp.sendMeter(m.user, meterEvent)
 }
 
-func (m *localUserMeter) AddDimension(meterName string, key string, value string) {
-	m.addDims = append(m.addDims, eventAddDim{MeterName: meterName, Key: key, Value: value})
+func (m *localUserMeter) ApplyDimension(key string, value string) {
+	m.addDims = append(m.addDims, eventAddDim{Key: key, Value: value})
 }
 
-func (m *localUserMeter) GetValue(meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
+func (m *localUserMeter) GetValue(ctx context.Context, meterName string, startTime time.Time, endTime time.Time, dims meters.Dimensions) (float64, bool) {
 	return m.mp.getValue(m.user, meterName, startTime, endTime, dims)
 }
 
-func (m *localUserMeter) Check(meterName string, value float64, dims meters.Dimensions) (bool, error) {
+func (m *localUserMeter) Check(ctx context.Context, meterName string, value float64, dims meters.Dimensions) (bool, error) {
 	return true, nil
 }
 
