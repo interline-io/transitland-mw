@@ -1,6 +1,7 @@
 package limit
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,7 +26,7 @@ func NewLimitMeterProvider(provider meters.MeterProvider) *LimitMeterProvider {
 	}
 }
 
-func (c *LimitMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
+func (c *LimitMeterProvider) NewMeter(u meters.MeterUser) meters.Meterer {
 	userName := ""
 	userData := ""
 	if u != nil {
@@ -36,7 +37,7 @@ func (c *LimitMeterProvider) NewMeter(u meters.MeterUser) meters.ApiMeter {
 		userId:   userName,
 		userData: userData,
 		provider: c,
-		ApiMeter: c.MeterProvider.NewMeter(u),
+		Meterer:  c.MeterProvider.NewMeter(u),
 	}
 }
 
@@ -44,7 +45,7 @@ type LimitMeter struct {
 	userId   string
 	userData string
 	provider *LimitMeterProvider
-	meters.ApiMeter
+	meters.Meterer
 }
 
 func (c *LimitMeter) GetLimits(meterName string, checkDims meters.Dimensions) []UserMeterLimit {
@@ -63,13 +64,13 @@ func (c *LimitMeter) GetLimits(meterName string, checkDims meters.Dimensions) []
 	return lims
 }
 
-func (c *LimitMeter) Check(meterName string, value float64, extraDimensions meters.Dimensions) (bool, error) {
+func (c *LimitMeter) Check(ctx context.Context, meterName string, value float64, extraDimensions meters.Dimensions) (bool, error) {
 	if !c.provider.Enabled {
 		return true, nil
 	}
 	for _, lim := range c.GetLimits(meterName, extraDimensions) {
 		d1, d2 := lim.Span()
-		currentValue, _ := c.GetValue(meterName, d1, d2, lim.Dims)
+		currentValue, _ := c.GetValue(ctx, meterName, d1, d2, lim.Dims)
 		if currentValue+value > lim.Limit {
 			log.TraceCheck(func() {
 				log.Trace().Str("meter", meterName).Str("user", c.userId).Float64("limit", lim.Limit).Float64("current", currentValue).Float64("add", value).Str("dims", fmt.Sprintf("%v", lim.Dims)).Msg("rate limited")
@@ -84,8 +85,8 @@ func (c *LimitMeter) Check(meterName string, value float64, extraDimensions mete
 	return true, nil
 }
 
-func (c *LimitMeter) Meter(meterName string, value float64, extraDimensions meters.Dimensions) error {
-	return c.ApiMeter.Meter(meterName, value, extraDimensions)
+func (c *LimitMeter) Meter(ctx context.Context, meterEvent meters.MeterEvent) error {
+	return c.Meterer.Meter(ctx, meterEvent)
 }
 
 func parseGkUserLimits(v string) []UserMeterLimit {
