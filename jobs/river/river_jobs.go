@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/interline-io/transitland-mw/jobs"
+	"github.com/interline-io/transitland-mw/metrics/otel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -67,12 +68,17 @@ type RiverJobs struct {
 }
 
 func NewRiverJobs(pool *pgxpool.Pool, queuePrefix string) (*RiverJobs, error) {
+	return NewRiverJobsWithOTel(pool, queuePrefix, otel.DefaultConfig())
+}
+
+// NewRiverJobsWithOTel creates a new River jobs instance with OpenTelemetry configuration
+func NewRiverJobsWithOTel(pool *pgxpool.Pool, queuePrefix string, otelConfig *otel.Config) (*RiverJobs, error) {
 	w := &RiverJobs{
 		pool:        pool,
 		jobMapper:   jobs.NewJobMapper(),
 		queuePrefix: queuePrefix,
 	}
-	return w, w.initClient()
+	return w, w.initClientWithOTel(otelConfig)
 }
 
 func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
@@ -80,6 +86,10 @@ func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
 }
 
 func (w *RiverJobs) initClient() error {
+	return w.initClientWithOTel(otel.DefaultConfig())
+}
+
+func (w *RiverJobs) initClientWithOTel(otelConfig *otel.Config) error {
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
@@ -89,6 +99,7 @@ func (w *RiverJobs) initClient() error {
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
+		Middleware:        []rivertype.Middleware{otel.NewRiverMiddleware(otelConfig)},
 	})
 	if err != nil {
 		return err
