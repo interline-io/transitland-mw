@@ -5,50 +5,55 @@ import (
 
 	"github.com/riandyrn/otelchi"
 	"github.com/riverqueue/rivercontrib/otelriver"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// Config holds OpenTelemetry configuration for both HTTP and River
+// Config holds OpenTelemetry configuration for HTTP, River, and Database
 type Config struct {
 	ServiceName  string
 	DurationUnit string // "ms" or "s" - used for River
+	// Tracing configuration flags
+	EnableHTTPTracing  bool
+	EnableRiverTracing bool
+	EnableDBTracing    bool
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DurationUnit: "s",
+		DurationUnit:       "s",
+		EnableHTTPTracing:  true,
+		EnableRiverTracing: true,
+		EnableDBTracing:    true,
 	}
 }
 
 // HTTP Middleware Functions
 
-// NewHTTPMiddleware creates a new HTTP OpenTelemetry middleware using otelchi
+// NewHTTPMiddleware creates a new HTTP OpenTelemetry middleware
 func NewHTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 	return otelchi.Middleware(serviceName)
 }
 
 // NewHTTPMiddlewareWithConfig creates a new HTTP OpenTelemetry middleware with custom configuration
 func NewHTTPMiddlewareWithConfig(config *Config) func(http.Handler) http.Handler {
+	if !config.EnableHTTPTracing {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
 	return otelchi.Middleware(config.ServiceName)
 }
 
 // River Middleware Functions
 
-// NewRiverMiddleware creates a River OpenTelemetry middleware with the given configuration
+// NewRiverMiddleware creates a River OpenTelemetry middleware
 func NewRiverMiddleware(cfg *Config) *otelriver.Middleware {
-	middlewareConfig := &otelriver.MiddlewareConfig{
-		DurationUnit: cfg.DurationUnit,
+	if !cfg.EnableRiverTracing {
+		return nil
 	}
 
-	return otelriver.NewMiddleware(middlewareConfig)
-}
-
-// NewRiverMiddlewareWithProviders creates a River OpenTelemetry middleware with custom providers
-func NewRiverMiddlewareWithProviders(cfg *Config, tracerProvider trace.TracerProvider) *otelriver.Middleware {
 	middlewareConfig := &otelriver.MiddlewareConfig{
-		DurationUnit:   cfg.DurationUnit,
-		TracerProvider: tracerProvider,
+		DurationUnit: cfg.DurationUnit,
 	}
 
 	return otelriver.NewMiddleware(middlewareConfig)

@@ -2,6 +2,7 @@ package dbutil
 
 import (
 	"context"
+	"database/sql"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
+	"go.nhat.io/otelsql"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
@@ -25,21 +28,104 @@ func toSnakeCase(str string) string {
 	return strings.ToLower(snake)
 }
 
+// initOTelDriver initializes the OpenTelemetry-wrapped driver
+func initOTelDriver(serviceName string) {
+	opts := []otelsql.DriverOption{
+		otelsql.WithDefaultAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.service", serviceName),
+		),
+	}
+	otelsql.Register("pgx-otel", opts...)
+}
+
+// configureDB sets up common database configuration
+func configureDB(db *sqlx.DB) error {
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Hour)
+	if err := db.Ping(); err != nil {
+		log.Error().Err(err).Msgf("could not connect to database")
+		return err
+	}
+	db.Mapper = reflectx.NewMapperFunc("db", toSnakeCase)
+	return nil
+}
+
+// OpenDBPoolWithOTel opens a database pool with OpenTelemetry tracing enabled
+func OpenDBPoolWithOTel(ctx context.Context, url string, serviceName string, enableTracing bool) (*pgxpool.Pool, *sqlx.DB, error) {
+	if enableTracing {
+		initOTelDriver(serviceName)
+	}
+
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var underlyingDB *sql.DB
+	if enableTracing {
+		underlyingDB, err = sql.Open("pgx-otel", url)
+		if err != nil {
+			log.Error().Err(err).Msg("could not open database")
+			return nil, nil, err
+		}
+	} else {
+		underlyingDB = stdlib.OpenDBFromPool(pool)
+	}
+
+	db := sqlx.NewDb(underlyingDB, "pgx")
+	if enableTracing {
+		db = sqlx.NewDb(underlyingDB, "pgx-otel")
+	}
+
+	if err := configureDB(db); err != nil {
+		return nil, nil, err
+	}
+	return pool, db.Unsafe(), nil
+}
+
 func OpenDBPool(ctx context.Context, url string) (*pgxpool.Pool, *sqlx.DB, error) {
 	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
 		return nil, nil, err
 	}
 	db := sqlx.NewDb(stdlib.OpenDBFromPool(pool), "pgx")
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(time.Hour)
-	if err := db.Ping(); err != nil {
-		log.Error().Err(err).Msgf("could not connect to database")
+	if err := configureDB(db); err != nil {
 		return nil, nil, err
 	}
-	db.Mapper = reflectx.NewMapperFunc("db", toSnakeCase)
 	return pool, db.Unsafe(), nil
+}
+
+// OpenDBWithOTel opens a database connection with OpenTelemetry tracing enabled
+func OpenDBWithOTel(url string, serviceName string, enableTracing bool) (*sqlx.DB, error) {
+	if enableTracing {
+		initOTelDriver(serviceName)
+	}
+
+	var underlyingDB *sql.DB
+	var err error
+
+	if enableTracing {
+		underlyingDB, err = sql.Open("pgx-otel", url)
+	} else {
+		underlyingDB, err = sql.Open("pgx", url)
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("could not open database")
+		return nil, err
+	}
+
+	db := sqlx.NewDb(underlyingDB, "pgx")
+	if enableTracing {
+		db = sqlx.NewDb(underlyingDB, "pgx-otel")
+	}
+
+	if err := configureDB(db); err != nil {
+		return nil, err
+	}
+	return db.Unsafe(), nil
 }
 
 func OpenDB(url string) (*sqlx.DB, error) {
@@ -48,14 +134,9 @@ func OpenDB(url string) (*sqlx.DB, error) {
 		log.Error().Err(err).Msg("could not open database")
 		return nil, err
 	}
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(time.Hour)
-	if err := db.Ping(); err != nil {
-		log.Error().Err(err).Msgf("could not connect to database")
+	if err := configureDB(db); err != nil {
 		return nil, err
 	}
-	db.Mapper = reflectx.NewMapperFunc("db", toSnakeCase)
 	return db.Unsafe(), nil
 }
 
@@ -86,7 +167,7 @@ func Select(ctx context.Context, db sqlx.Ext, q sq.SelectBuilder, dest interface
 	return err
 }
 
-// Select runs a query and reads results into dest.
+// Get runs a query and reads a single result into dest.
 func Get(ctx context.Context, db sqlx.Ext, q sq.SelectBuilder, dest interface{}) error {
 	useStatement := false
 	q = q.PlaceholderFormat(sq.Dollar)
