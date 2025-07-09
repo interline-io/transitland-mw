@@ -28,8 +28,8 @@ func toSnakeCase(str string) string {
 	return strings.ToLower(snake)
 }
 
-// initOTelDriver initializes the OpenTelemetry-wrapped driver
-func initOTelDriver(serviceName string) {
+// InitOTelDriver initializes the OpenTelemetry-wrapped driver
+func InitOTelDriver(serviceName string) {
 	opts := []otelsql.DriverOption{
 		otelsql.WithDefaultAttributes(
 			attribute.String("db.system", "postgresql"),
@@ -55,7 +55,7 @@ func configureDB(db *sqlx.DB) error {
 // OpenDBPoolWithOTel opens a database pool with OpenTelemetry tracing enabled
 func OpenDBPoolWithOTel(ctx context.Context, url string, serviceName string, enableTracing bool) (*pgxpool.Pool, *sqlx.DB, error) {
 	if enableTracing {
-		initOTelDriver(serviceName)
+		InitOTelDriver(serviceName)
 	}
 
 	pool, err := pgxpool.New(ctx, url)
@@ -100,7 +100,7 @@ func OpenDBPool(ctx context.Context, url string) (*pgxpool.Pool, *sqlx.DB, error
 // OpenDBWithOTel opens a database connection with OpenTelemetry tracing enabled
 func OpenDBWithOTel(url string, serviceName string, enableTracing bool) (*sqlx.DB, error) {
 	if enableTracing {
-		initOTelDriver(serviceName)
+		InitOTelDriver(serviceName)
 	}
 
 	var underlyingDB *sql.DB
