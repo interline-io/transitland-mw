@@ -24,33 +24,35 @@ import (
 // APIKeyConfig represents configuration for a single API key
 type APIKeyConfig struct {
 	Name        string `json:"name"`
+	Username    string `json:"username"`
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
 }
 
 // APIKeyValidator interface allows for custom API key validation implementations
 type APIKeyValidator interface {
-	CheckAPIKey(apiKey string) (bool, error)
+	CheckAPIKey(apiKey string) (string, bool, error)
 }
 
 // ConfigBasedValidator implements APIKeyValidator using a configuration-based approach
 type ConfigBasedValidator struct {
-	validAPIKeys map[string]bool
+	validAPIKeys map[string]string // maps API key to username
 }
 
 func NewConfigBasedValidator() *ConfigBasedValidator {
 	return &ConfigBasedValidator{
-		validAPIKeys: make(map[string]bool),
+		validAPIKeys: make(map[string]string),
 	}
 }
 
 // CheckAPIKey validates an API key against the configured valid keys
-func (v *ConfigBasedValidator) CheckAPIKey(apiKey string) (bool, error) {
-	return v.validAPIKeys[apiKey], nil
+func (v *ConfigBasedValidator) CheckAPIKey(apiKey string) (string, bool, error) {
+	username, exists := v.validAPIKeys[apiKey]
+	return username, exists, nil
 }
 
 func (v *ConfigBasedValidator) LoadConfig(path string) error {
-	v.validAPIKeys = make(map[string]bool)
+	v.validAPIKeys = make(map[string]string)
 	file, err := os.Open(path)
 	if err != nil {
 		log.Errorf("Failed to open API key config file %s: %v", path, err)
@@ -69,8 +71,12 @@ func (v *ConfigBasedValidator) LoadConfig(path string) error {
 	}
 	for _, key := range apiKeys {
 		if key.Enabled {
-			v.validAPIKeys[key.Name] = true
-			log.Infof("Loaded API key: %s", key.Name)
+			username := key.Username
+			if username == "" {
+				username = key.Name // fallback to key name if no username specified
+			}
+			v.validAPIKeys[key.Name] = username
+			log.Infof("Loaded API key: %s (username: %s)", key.Name, username)
 		} else {
 			log.Infof("Disabled API key: %s", key.Name)
 		}
@@ -135,7 +141,7 @@ func (s *Server) authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	valid, err := s.validator.CheckAPIKey(apiKey)
+	username, valid, err := s.validator.CheckAPIKey(apiKey)
 	if err != nil {
 		if s.requestLogging {
 			log.Errorf("auth request validation error for key %s from %s: %v", apiKey, r.RemoteAddr, err)
@@ -145,8 +151,10 @@ func (s *Server) authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if valid {
+		// Set the username header for nginx to use
+		w.Header().Set("X-Username", username)
 		if s.requestLogging {
-			log.Debugf("auth request successful for key %s from %s", apiKey, r.RemoteAddr)
+			log.Debugf("auth request successful for key %s (username: %s) from %s", apiKey, username, r.RemoteAddr)
 		}
 		w.WriteHeader(http.StatusOK)
 		return

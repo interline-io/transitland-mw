@@ -11,26 +11,27 @@ import (
 // MockValidator is a test implementation of APIKeyValidator
 // This allows us to test the server logic without depending on external configuration files
 type MockValidator struct {
-	validKeys    map[string]bool
+	validKeys    map[string]string // maps API key to username
 	shouldError  bool
 	errorMessage string
 }
 
-func (m *MockValidator) CheckAPIKey(apiKey string) (bool, error) {
+func (m *MockValidator) CheckAPIKey(apiKey string) (string, bool, error) {
 	if m.shouldError {
-		return false, errors.New(m.errorMessage)
+		return "", false, errors.New(m.errorMessage)
 	}
-	return m.validKeys[apiKey], nil
+	username, exists := m.validKeys[apiKey]
+	return username, exists, nil
 }
 
 // getTestValidator returns a preconfigured MockValidator for testing
 func getTestValidator() *MockValidator {
 	return &MockValidator{
-		validKeys: map[string]bool{
-			"dev-key-123":     true,
-			"staging-key-456": true,
-			"prod-key-789":    true,
-			"admin-key-000":   true,
+		validKeys: map[string]string{
+			"dev-key-123":     "dev-user",
+			"staging-key-456": "staging-user",
+			"prod-key-789":    "prod-user",
+			"admin-key-000":   "admin-user",
 			// Note: disabled-key-999 is intentionally not included (simulating disabled key)
 		},
 		shouldError: false,
@@ -91,12 +92,20 @@ func TestNginxAuth(t *testing.T) {
 
 	t.Run("auth", func(t *testing.T) {
 		t.Run("valid_keys", func(t *testing.T) {
-			validKeys := []string{"dev-key-123", "staging-key-456", "prod-key-789", "admin-key-000"}
+			testCases := []struct {
+				apiKey   string
+				username string
+			}{
+				{"dev-key-123", "dev-user"},
+				{"staging-key-456", "staging-user"},
+				{"prod-key-789", "prod-user"},
+				{"admin-key-000", "admin-user"},
+			}
 
-			for _, key := range validKeys {
-				t.Run(key, func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(tc.apiKey, func(t *testing.T) {
 					req, _ := http.NewRequest("GET", server.URL+"/auth", nil)
-					req.Header.Set("apikey", key)
+					req.Header.Set("apikey", tc.apiKey)
 
 					resp, err := http.DefaultClient.Do(req)
 					if err != nil {
@@ -105,7 +114,13 @@ func TestNginxAuth(t *testing.T) {
 					defer resp.Body.Close()
 
 					if resp.StatusCode != http.StatusOK {
-						t.Errorf("Expected auth endpoint with valid key %s to return 200, got %d", key, resp.StatusCode)
+						t.Errorf("Expected auth endpoint with valid key %s to return 200, got %d", tc.apiKey, resp.StatusCode)
+					}
+
+					// Check that X-Username header is set correctly
+					username := resp.Header.Get("X-Username")
+					if username != tc.username {
+						t.Errorf("Expected X-Username header to be %s, got %s", tc.username, username)
 					}
 				})
 			}
@@ -250,9 +265,9 @@ func TestValidatorInterface(t *testing.T) {
 	t.Run("custom_validator", func(t *testing.T) {
 		// Create a mock validator with custom logic
 		mockValidator := &MockValidator{
-			validKeys: map[string]bool{
-				"custom-key-1": true,
-				"custom-key-2": true,
+			validKeys: map[string]string{
+				"custom-key-1": "custom-user-1",
+				"custom-key-2": "custom-user-2",
 			},
 			shouldError: false,
 		}
@@ -282,6 +297,12 @@ func TestValidatorInterface(t *testing.T) {
 			t.Errorf("Expected auth endpoint with custom valid key to return 200, got %d", resp.StatusCode)
 		}
 
+		// Check that X-Username header is set correctly
+		username := resp.Header.Get("X-Username")
+		if username != "custom-user-1" {
+			t.Errorf("Expected X-Username header to be 'custom-user-1', got %s", username)
+		}
+
 		// Test invalid custom key
 		req, _ = http.NewRequest("GET", server.URL+"/auth", nil)
 		req.Header.Set("apikey", "invalid-custom-key")
@@ -300,7 +321,7 @@ func TestValidatorInterface(t *testing.T) {
 	t.Run("validator_error_handling", func(t *testing.T) {
 		// Create a mock validator that returns errors
 		mockValidator := &MockValidator{
-			validKeys:    map[string]bool{},
+			validKeys:    map[string]string{},
 			shouldError:  true,
 			errorMessage: "external service unavailable",
 		}
