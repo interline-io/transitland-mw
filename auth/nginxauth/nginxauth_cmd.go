@@ -23,6 +23,9 @@ type Command struct {
 	JWTAudience      string
 	JWTIssuer        string
 
+	// Default validator configuration
+	DefaultUsername string
+
 	// Server configuration
 	Bind string
 	Port int
@@ -43,6 +46,9 @@ func (cmd *Command) AddFlags(fl *pflag.FlagSet) {
 	fl.StringVar(&cmd.JWTPublicKeyPath, "jwt-public-key", "", "Path to RSA public key file for JWT validation")
 	fl.StringVar(&cmd.JWTAudience, "jwt-audience", "", "Expected JWT audience (optional)")
 	fl.StringVar(&cmd.JWTIssuer, "jwt-issuer", "", "Expected JWT issuer (optional)")
+
+	// Default validator configuration
+	fl.StringVar(&cmd.DefaultUsername, "default-username", "", "Default username for fallback authentication (allows all requests)")
 }
 
 func (cmd *Command) HelpDesc() (string, string) {
@@ -52,6 +58,7 @@ It supports multiple authentication methods:
 
 1. API Keys: Validates keys passed in the "apikey" header
 2. JWT Tokens: Validates JWT tokens in the "authorization" header with "Bearer <token>" format
+3. Default Validator: Acts as a fallback that always allows requests (use with caution)
 
 Authentication is attempted in the order validators are configured. The first successful 
 validation allows the request.
@@ -75,6 +82,9 @@ Examples:
   
   # Both API key and JWT
   nginx-auth --api-key-config /path/to/keys.json --jwt-public-key /path/to/public.pem
+  
+  # API key with fallback to allow all requests
+  nginx-auth --api-key-config /path/to/keys.json --default-username "anonymous"
 `
 }
 
@@ -172,6 +182,13 @@ func (cmd *Command) setupValidators() ([]Validator, error) {
 		if cmd.JWTIssuer != "" {
 			log.Infof("JWT issuer validation enabled: %s", cmd.JWTIssuer)
 		}
+	}
+
+	// Setup default validator if default username is provided
+	if cmd.DefaultUsername != "" {
+		defaultValidator := NewDefaultValidatorWithUsername(cmd.DefaultUsername)
+		validators = append(validators, defaultValidator)
+		log.Infof("Loaded default validator with username: %s", cmd.DefaultUsername)
 	}
 
 	return validators, nil

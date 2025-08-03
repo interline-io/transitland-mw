@@ -20,6 +20,7 @@
 //   - validator.go: Unified Validator interface
 //   - apikey.go: API key validation implementation
 //   - jwt.go: JWT validation implementation
+//   - anonymous.go: Default validator implementation (always allows access)
 //
 // The unified Validator interface allows for flexible authentication:
 //
@@ -44,6 +45,10 @@
 //
 //	// Both API Key and JWT (API key checked first)
 //	server := nginxauth.NewServerWithValidators(config, apiKeyValidator, jwtValidator)
+//
+//	// API Key with default fallback (allows all requests if no valid API key)
+//	defaultValidator := nginxauth.NewDefaultValidatorWithUsername("anonymous")
+//	server := nginxauth.NewServerWithValidators(config, apiKeyValidator, defaultValidator)
 //
 //	// Add validators dynamically
 //	server.AddValidator(customValidator)
@@ -83,13 +88,7 @@ func NewServer() *Server {
 		LogLevel:       "debug",
 		RequestLogging: true,
 	}
-	return NewServerWithConfig(defaultConfig)
-}
-
-// NewServerWithConfig creates a new auth server with the provided configuration and default API key validator
-func NewServerWithConfig(config ServerConfig) *Server {
-	validator := NewAPIKeyValidator()
-	return NewServerWithValidators(config, validator)
+	return NewServerWithValidators(defaultConfig)
 }
 
 // NewServerWithValidators creates a new auth server with custom validators
@@ -104,29 +103,6 @@ func NewServerWithValidators(config ServerConfig, validators ...Validator) *Serv
 // AddValidator adds a validator to the server's validator chain
 func (s *Server) AddValidator(validator Validator) {
 	s.validators = append(s.validators, validator)
-}
-
-// Legacy constructor functions for backward compatibility
-
-// NewServerWithValidator creates a new auth server with a custom API key validator (backward compatibility)
-// Deprecated: Use NewServerWithValidators instead
-func NewServerWithValidator(config ServerConfig, apiKeyValidator APIKeyValidatorInterface) *Server {
-	// Create an adapter to wrap the old interface
-	adapter := &legacyAPIKeyAdapter{validator: apiKeyValidator}
-	return NewServerWithValidators(config, adapter)
-}
-
-// legacyAPIKeyAdapter adapts the old APIKeyValidator interface to the new Validator interface
-type legacyAPIKeyAdapter struct {
-	validator APIKeyValidatorInterface
-}
-
-func (a *legacyAPIKeyAdapter) Validate(r *http.Request) (string, bool, error) {
-	apiKey := r.Header.Get("apikey")
-	if apiKey == "" {
-		return "", false, nil
-	}
-	return a.validator.CheckAPIKey(apiKey)
 }
 
 // SetupRoutes configures the HTTP routes for the auth server
