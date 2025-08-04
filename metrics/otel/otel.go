@@ -7,14 +7,13 @@ import (
 	"github.com/riverqueue/rivercontrib/otelriver"
 )
 
-// Config holds OpenTelemetry configuration for HTTP, River, and Database
+// Config holds OpenTelemetry configuration for HTTP and River
 type Config struct {
 	ServiceName  string
 	DurationUnit string // "ms" or "s" - used for River
 	// Tracing configuration flags
 	EnableHTTPTracing  bool
 	EnableRiverTracing bool
-	EnableDBTracing    bool
 }
 
 // DefaultConfig returns a default configuration
@@ -23,7 +22,7 @@ func DefaultConfig() *Config {
 		DurationUnit:       "s",
 		EnableHTTPTracing:  true,
 		EnableRiverTracing: true,
-		EnableDBTracing:    true,
+		// maybe in the future: EnableDBTracing bool
 	}
 }
 
