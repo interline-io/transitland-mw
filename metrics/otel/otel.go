@@ -45,7 +45,7 @@ OTLP Exporter:
 Example usage:
   # Disable OTEL completely
   OTEL_TRACES_EXPORTER=none
-  
+
   # Production setup
   OTEL_ENVIRONMENT=production
   OTEL_SERVICE_VERSION=2.1.0
@@ -54,7 +54,7 @@ Example usage:
   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer token123
   OTEL_EXPORTER_OTLP_COMPRESSION=gzip
   OTEL_EXPORTER_OTLP_RETRY_ENABLED=true
-  
+
   # Console exporter options
   OTEL_STDOUT_WITHOUT_TIMESTAMPS=true
   OTEL_STDOUT_WRITER=stderr
@@ -76,7 +76,6 @@ func DefaultConfig() *Config {
 		DurationUnit:       "s",
 		EnableHTTPTracing:  true,
 		EnableRiverTracing: true,
-		// maybe in the future: EnableDBTracing bool
 	}
 }
 
@@ -105,15 +104,10 @@ func InitSDK(serviceName string) error {
 		return err
 	}
 
-	// Determine which exporter to use based on environment variables
+	// Set default exporter to "none" unless explicitly configured
 	exporterType := os.Getenv("OTEL_TRACES_EXPORTER")
 	if exporterType == "" {
-		// Default to OTLP for production, console for development
-		if env == "production" {
-			exporterType = "otlp"
-		} else {
-			exporterType = "console"
-		}
+		exporterType = "none"
 	}
 
 	var exporter sdktrace.SpanExporter
