@@ -27,7 +27,7 @@ Supported Environment Variables:
 Core Configuration:
 - OTEL_ENVIRONMENT: Deployment environment (default: "development")
 - OTEL_SERVICE_VERSION: Service version (default: "1.0.0")
-- OTEL_TRACES_EXPORTER: Exporter type ("console" or "otlp", default based on environment)
+- OTEL_TRACES_EXPORTER: Exporter type ("console", "otlp", or "none" to disable)
 
 Console Exporter (stdouttrace):
 - OTEL_STDOUT_WITHOUT_TIMESTAMPS: "true" to exclude timestamps from console output
@@ -43,6 +43,10 @@ OTLP Exporter:
 - OTEL_EXPORTER_OTLP_RETRY_ENABLED: "true" to enable retry with exponential backoff
 
 Example usage:
+  # Disable OTEL completely
+  OTEL_TRACES_EXPORTER=none
+  
+  # Production setup
   OTEL_ENVIRONMENT=production
   OTEL_SERVICE_VERSION=2.1.0
   OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-alloy:4317
@@ -50,7 +54,7 @@ Example usage:
   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer token123
   OTEL_EXPORTER_OTLP_COMPRESSION=gzip
   OTEL_EXPORTER_OTLP_RETRY_ENABLED=true
-
+  
   # Console exporter options
   OTEL_STDOUT_WITHOUT_TIMESTAMPS=true
   OTEL_STDOUT_WRITER=stderr
