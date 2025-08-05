@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/interline-io/log"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,7 +17,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 	"go.nhat.io/otelsql"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
@@ -26,20 +26,6 @@ func toSnakeCase(str string) string {
 	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
 	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
 	return strings.ToLower(snake)
-}
-
-// InitOTelDriver initializes the OpenTelemetry-wrapped driver and returns the driver name
-func InitOTelDriver(serviceName string) (string, error) {
-	return otelsql.Register("pgx",
-		otelsql.AllowRoot(),
-		otelsql.TraceQueryWithoutArgs(),
-		otelsql.TraceRowsClose(),
-		otelsql.TraceRowsAffected(),
-		otelsql.WithDefaultAttributes(
-			attribute.String("db.system", "postgresql"),
-			attribute.String("db.service", serviceName),
-		),
-	)
 }
 
 // configureDB sets up common database configuration
@@ -58,7 +44,7 @@ func configureDB(db *sqlx.DB) error {
 // OpenDBPoolWithOTel opens a database pool with OpenTelemetry tracing enabled
 func OpenDBPoolWithOTel(ctx context.Context, url string, serviceName string, enableTracing bool) (*pgxpool.Pool, *sqlx.DB, error) {
 	var pool *pgxpool.Pool
-	var underlyingDB *sql.DB
+	var sqlDb *sql.DB
 	var err error
 
 	pool, err = pgxpool.New(ctx, url)
@@ -68,45 +54,45 @@ func OpenDBPoolWithOTel(ctx context.Context, url string, serviceName string, ena
 
 	if enableTracing {
 		// Initialize the OpenTelemetry-wrapped driver
-		driverName, err := InitOTelDriver(serviceName)
+		driverName, err := otelsql.Register("pgx",
+			otelsql.AllowRoot(),
+			otelsql.TraceQueryWithoutArgs(),
+			otelsql.TraceRowsClose(),
+			otelsql.TraceRowsAffected(),
+			otelsql.WithDefaultAttributes(
+				attribute.String("db.system", "postgresql"),
+				attribute.String("db.service", serviceName),
+			),
+		)
 		if err != nil {
 			log.Error().Err(err).Msg("could not register otel driver")
 			return nil, nil, err
 		}
 		// Use the wrapped driver
-		underlyingDB, err = sql.Open(driverName, url)
+		sqlDb, err = sql.Open(driverName, url)
 		if err != nil {
 			log.Error().Err(err).Msg("could not open database with tracing")
 			return nil, nil, err
 		}
 	} else {
-		underlyingDB = stdlib.OpenDBFromPool(pool)
+		sqlDb = stdlib.OpenDBFromPool(pool)
 	}
 
-	db := sqlx.NewDb(underlyingDB, "pgx")
-
+	db := sqlx.NewDb(sqlDb, "pgx")
 	if err := configureDB(db); err != nil {
 		return nil, nil, err
 	}
 
 	// Record database connection metrics if tracing is enabled
 	if enableTracing {
-		otelsql.RecordStats(underlyingDB)
+		otelsql.RecordStats(sqlDb)
 	}
 
 	return pool, db.Unsafe(), nil
 }
 
 func OpenDBPool(ctx context.Context, url string) (*pgxpool.Pool, *sqlx.DB, error) {
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		return nil, nil, err
-	}
-	db := sqlx.NewDb(stdlib.OpenDBFromPool(pool), "pgx")
-	if err := configureDB(db); err != nil {
-		return nil, nil, err
-	}
-	return pool, db.Unsafe(), nil
+	return OpenDBPoolWithOTel(ctx, url, "", false)
 }
 
 func OpenDB(url string) (*sqlx.DB, error) {
