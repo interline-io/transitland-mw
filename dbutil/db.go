@@ -16,7 +16,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 	"go.nhat.io/otelsql"
-	_ "go.nhat.io/otelsql"
 	"go.opentelemetry.io/otel/attribute"
 )
 

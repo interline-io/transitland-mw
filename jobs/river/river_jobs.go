@@ -93,13 +93,19 @@ func (w *RiverJobs) initClientWithOTel(otelConfig *otel.Config) error {
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
+	// Build middleware slice conditionally
+	var middleware []rivertype.Middleware
+	if otelMiddleware := otel.NewRiverMiddleware(otelConfig); otelMiddleware != nil {
+		middleware = append(middleware, otelMiddleware)
+	}
+
 	w.riverClient, err = river.NewClient(riverpgxv5.New(w.pool), &river.Config{
 		Queues:            map[string]river.QueueConfig{defaultQueue: {MaxWorkers: 4}},
 		JobTimeout:        120 * time.Minute,
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
-		Middleware:        []rivertype.Middleware{otel.NewRiverMiddleware(otelConfig)},
+		Middleware:        middleware,
 	})
 	if err != nil {
 		return err

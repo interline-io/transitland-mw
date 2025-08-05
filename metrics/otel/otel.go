@@ -79,6 +79,69 @@ func DefaultConfig() *Config {
 	}
 }
 
+// buildConsoleExporterOptions builds the options for the console exporter
+// based on environment variables
+func buildConsoleExporterOptions() []stdouttrace.Option {
+	opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint()}
+
+	// Allow customization via environment variables
+	if os.Getenv("OTEL_STDOUT_WITHOUT_TIMESTAMPS") == "true" {
+		opts = append(opts, stdouttrace.WithoutTimestamps())
+	}
+
+	// Allow custom writer destination
+	if writerDest := os.Getenv("OTEL_STDOUT_WRITER"); writerDest != "" {
+		var writer io.Writer
+		switch writerDest {
+		case "stderr":
+			writer = os.Stderr
+		case "stdout":
+			writer = os.Stdout
+		default:
+			// Try to open as file path
+			if strings.HasPrefix(writerDest, "file:") {
+				filePath := strings.TrimPrefix(writerDest, "file:")
+				if file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+					writer = file
+				}
+			}
+		}
+		if writer != nil {
+			opts = append(opts, stdouttrace.WithWriter(writer))
+		}
+	}
+
+	// Allow disabling pretty print
+	if prettyPrint := os.Getenv("OTEL_STDOUT_PRETTY_PRINT"); prettyPrint == "false" {
+		// Remove WithPrettyPrint and add without it
+		opts = []stdouttrace.Option{}
+		if os.Getenv("OTEL_STDOUT_WITHOUT_TIMESTAMPS") == "true" {
+			opts = append(opts, stdouttrace.WithoutTimestamps())
+		}
+		if writerDest := os.Getenv("OTEL_STDOUT_WRITER"); writerDest != "" {
+			var writer io.Writer
+			switch writerDest {
+			case "stderr":
+				writer = os.Stderr
+			case "stdout":
+				writer = os.Stdout
+			default:
+				if strings.HasPrefix(writerDest, "file:") {
+					filePath := strings.TrimPrefix(writerDest, "file:")
+					if file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+						writer = file
+					}
+				}
+			}
+			if writer != nil {
+				opts = append(opts, stdouttrace.WithWriter(writer))
+			}
+		}
+	}
+
+	return opts
+}
+
 // InitSDK initializes the OpenTelemetry SDK with appropriate exporter
 func InitSDK(serviceName string) error {
 	// Get environment variables for resource configuration
@@ -114,66 +177,12 @@ func InitSDK(serviceName string) error {
 	var err2 error
 
 	switch exporterType {
+	case "none":
+		// No exporter - tracing is disabled
+		return nil
 	case "console":
 		// Console exporter for development and debugging
-		// Use pretty print for readable output, can be customized via environment
-		opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint()}
-
-		// Allow customization via environment variables
-		if os.Getenv("OTEL_STDOUT_WITHOUT_TIMESTAMPS") == "true" {
-			opts = append(opts, stdouttrace.WithoutTimestamps())
-		}
-
-		// Allow custom writer destination
-		if writerDest := os.Getenv("OTEL_STDOUT_WRITER"); writerDest != "" {
-			var writer io.Writer
-			switch writerDest {
-			case "stderr":
-				writer = os.Stderr
-			case "stdout":
-				writer = os.Stdout
-			default:
-				// Try to open as file path
-				if strings.HasPrefix(writerDest, "file:") {
-					filePath := strings.TrimPrefix(writerDest, "file:")
-					if file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-						writer = file
-					}
-				}
-			}
-			if writer != nil {
-				opts = append(opts, stdouttrace.WithWriter(writer))
-			}
-		}
-
-		// Allow disabling pretty print
-		if prettyPrint := os.Getenv("OTEL_STDOUT_PRETTY_PRINT"); prettyPrint == "false" {
-			// Remove WithPrettyPrint and add without it
-			opts = []stdouttrace.Option{}
-			if os.Getenv("OTEL_STDOUT_WITHOUT_TIMESTAMPS") == "true" {
-				opts = append(opts, stdouttrace.WithoutTimestamps())
-			}
-			if writerDest := os.Getenv("OTEL_STDOUT_WRITER"); writerDest != "" {
-				var writer io.Writer
-				switch writerDest {
-				case "stderr":
-					writer = os.Stderr
-				case "stdout":
-					writer = os.Stdout
-				default:
-					if strings.HasPrefix(writerDest, "file:") {
-						filePath := strings.TrimPrefix(writerDest, "file:")
-						if file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-							writer = file
-						}
-					}
-				}
-				if writer != nil {
-					opts = append(opts, stdouttrace.WithWriter(writer))
-				}
-			}
-		}
-
+		opts := buildConsoleExporterOptions()
 		exporter, err2 = stdouttrace.New(opts...)
 	case "otlp":
 		// OTLP exporter for production (sends to Grafana Alloy or other OTLP-compatible backends)
