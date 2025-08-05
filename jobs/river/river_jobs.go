@@ -68,36 +68,35 @@ type RiverJobs struct {
 }
 
 func NewRiverJobs(pool *pgxpool.Pool, queuePrefix string) (*RiverJobs, error) {
-	return NewRiverJobsWithOTel(pool, queuePrefix, otel.DefaultConfig())
+	return NewRiverJobsWithMiddleware(pool, queuePrefix)
 }
 
 // NewRiverJobsWithOTel creates a new River jobs instance with OpenTelemetry configuration
 func NewRiverJobsWithOTel(pool *pgxpool.Pool, queuePrefix string, otelConfig *otel.Config) (*RiverJobs, error) {
+	var middlewares []rivertype.Middleware
+	if otelMiddleware := otel.NewRiverMiddleware(otelConfig); otelMiddleware != nil {
+		middlewares = append(middlewares, otelMiddleware)
+	}
+	return NewRiverJobsWithMiddleware(pool, queuePrefix, middlewares...)
+}
+
+func NewRiverJobsWithMiddleware(pool *pgxpool.Pool, queuePrefix string, middlewares ...rivertype.Middleware) (*RiverJobs, error) {
 	w := &RiverJobs{
 		pool:        pool,
 		jobMapper:   jobs.NewJobMapper(),
 		queuePrefix: queuePrefix,
 	}
-	return w, w.initClientWithOTel(otelConfig)
+	return w, w.initClient(middlewares...)
 }
 
 func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
 	return w.riverClient
 }
 
-func (w *RiverJobs) initClient() error {
-	return w.initClientWithOTel(otel.DefaultConfig())
-}
-
-func (w *RiverJobs) initClientWithOTel(otelConfig *otel.Config) error {
+func (w *RiverJobs) initClient(middlewares ...rivertype.Middleware) error {
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
-	// Build middleware slice conditionally
-	var middleware []rivertype.Middleware
-	if otelMiddleware := otel.NewRiverMiddleware(otelConfig); otelMiddleware != nil {
-		middleware = append(middleware, otelMiddleware)
-	}
 
 	w.riverClient, err = river.NewClient(riverpgxv5.New(w.pool), &river.Config{
 		Queues:            map[string]river.QueueConfig{defaultQueue: {MaxWorkers: 4}},
@@ -105,7 +104,7 @@ func (w *RiverJobs) initClientWithOTel(otelConfig *otel.Config) error {
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
-		Middleware:        middleware,
+		Middleware:        middlewares,
 	})
 	if err != nil {
 		return err
@@ -122,6 +121,7 @@ func (w *RiverJobs) initClientWithOTel(otelConfig *otel.Config) error {
 		return err
 	}
 	return nil
+
 }
 
 func (w *RiverJobs) Use(mwf jobs.JobMiddleware) {
