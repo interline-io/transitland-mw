@@ -13,109 +13,42 @@
 //   - Flexible configuration via environment variables or Config struct
 //   - Support for REST and GraphQL API types with appropriate span attributes
 //   - Production-ready features like retry logic, compression, and authentication headers
-//
-// Basic usage:
-//
-//	// Initialize with environment variables
-//	err := otel.InitSDK("my-service")
-//
-//	// Or with custom configuration
-//	cfg := &otel.Config{
-//	    ServiceName:     "my-service",
-//	    TracesExporter:  "console",
-//	    Environment:     "development",
-//	    ApiType:         "rest",
-//	}
-//	err := otel.InitSDKWithConfig("my-service", cfg)
-//
-//	// Add HTTP middleware
-//	r := chi.NewRouter()
-//	r.Use(otel.GetEnrichedOTelMiddleware(cfg))
+// Supported Environment Variables:
+// Core Configuration:
+// - OTEL_ENVIRONMENT: Deployment environment (default: "development")
+// - OTEL_SERVICE_VERSION: Service version (default: "1.0.0")
+// - OTEL_TRACES_EXPORTER: Exporter type ("console", "otlp", or "none" to disable)
+// Console Exporter (stdouttrace):
+// - OTEL_STDOUT_WITHOUT_TIMESTAMPS: "true" to exclude timestamps from console output
+// - OTEL_STDOUT_WRITER: Custom writer destination (e.g., "stderr", "file:/path/to/file")
+// - OTEL_STDOUT_PRETTY_PRINT: "false" to disable pretty printing (default: "true")
+// OTLP Exporter:
+// - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint URL (default: "http://grafana-alloy:4317")
+// - OTEL_EXPORTER_OTLP_TIMEOUT: Request timeout (supports "10s", "30s" or "10000" for milliseconds)
+// - OTEL_EXPORTER_OTLP_HEADERS: Custom headers in format "key1=value1,key2=value2"
+// - OTEL_EXPORTER_OTLP_COMPRESSION: "gzip" to enable compression
+// - OTEL_EXPORTER_OTLP_URL_PATH: Custom URL path (default: "/v1/traces")
+// - OTEL_EXPORTER_OTLP_RETRY_ENABLED: "true" to enable retry with exponential backoff
+
 package otel
 
 import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/interline-io/transitland-mw/auth/authn"
-	"github.com/riandyrn/otelchi"
-	"github.com/riverqueue/rivercontrib/otelriver"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.opentelemetry.io/otel/trace"
 )
-
-/*
-Supported Environment Variables:
-
-Core Configuration:
-- OTEL_ENVIRONMENT: Deployment environment (default: "development")
-- OTEL_SERVICE_VERSION: Service version (default: "1.0.0")
-- OTEL_TRACES_EXPORTER: Exporter type ("console", "otlp", or "none" to disable)
-
-Console Exporter (stdouttrace):
-- OTEL_STDOUT_WITHOUT_TIMESTAMPS: "true" to exclude timestamps from console output
-- OTEL_STDOUT_WRITER: Custom writer destination (e.g., "stderr", "file:/path/to/file")
-- OTEL_STDOUT_PRETTY_PRINT: "false" to disable pretty printing (default: "true")
-
-OTLP Exporter:
-- OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint URL (default: "http://grafana-alloy:4317")
-- OTEL_EXPORTER_OTLP_TIMEOUT: Request timeout (supports "10s", "30s" or "10000" for milliseconds)
-- OTEL_EXPORTER_OTLP_HEADERS: Custom headers in format "key1=value1,key2=value2"
-- OTEL_EXPORTER_OTLP_COMPRESSION: "gzip" to enable compression
-- OTEL_EXPORTER_OTLP_URL_PATH: Custom URL path (default: "/v1/traces")
-- OTEL_EXPORTER_OTLP_RETRY_ENABLED: "true" to enable retry with exponential backoff
-
-Example usage:
-  # Simple usage with environment variables
-  OTEL_TRACES_EXPORTER=console OTEL_ENVIRONMENT=development
-  cfg := otel.GetConfigFromEnv()
-  err := otel.InitSDKWithConfig("my-service", cfg)
-
-  # Or use the convenience function that reads from environment automatically
-  err := otel.InitSDK("my-service")
-
-  # Disable OTEL completely
-  OTEL_TRACES_EXPORTER=none
-
-  # Production setup
-  OTEL_ENVIRONMENT=production
-  OTEL_SERVICE_VERSION=2.1.0
-  OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-alloy:4317
-  OTEL_EXPORTER_OTLP_TIMEOUT=30s
-  OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer token123
-  OTEL_EXPORTER_OTLP_COMPRESSION=gzip
-  OTEL_EXPORTER_OTLP_RETRY_ENABLED=true
-
-  # Console exporter options
-  OTEL_STDOUT_WITHOUT_TIMESTAMPS=true
-  OTEL_STDOUT_WRITER=stderr
-  OTEL_STDOUT_PRETTY_PRINT=false
-
-  # Manual configuration (alternative to environment variables)
-  cfg := &otel.Config{
-    ServiceName:        "my-service",
-    TracesExporter:     "console",
-    Environment:        "development",
-    EnableHTTPTracing:  true,
-    EnableRiverTracing: true,
-  }
-  err := otel.InitSDKWithConfig("my-service", cfg)
-*/
 
 // Config holds OpenTelemetry configuration for HTTP and River middleware.
 // This struct centralizes all OpenTelemetry settings and can be populated
@@ -145,6 +78,9 @@ type Config struct {
 	OTLPCompression  string            // "gzip" to enable compression, "" to disable
 	OTLPURLPath      string            // custom URL path for OTLP endpoint
 	OTLPRetryEnabled bool              // whether to enable retry with exponential backoff
+
+	// mock exporter for testing purposes
+	mockExporter sdktrace.SpanExporter
 }
 
 // DefaultConfig returns a default configuration with sensible defaults.
@@ -222,10 +158,70 @@ func GetConfigFromEnv() *Config {
 	return cfg
 }
 
+// Initialization Functions
+
+// InitSDK initializes the OpenTelemetry SDK with configuration from environment variables.
+// This is a convenience function that calls GetConfigFromEnv() and InitSDKWithConfig().
+// Returns nil if tracing is disabled (OTEL_TRACES_EXPORTER=none).
+func InitSDK(serviceName string) error {
+	cfg := GetConfigFromEnv()
+	return InitSDKWithConfig(serviceName, cfg)
+}
+
+// InitSDKWithConfig initializes the OpenTelemetry SDK with the provided configuration.
+// Supports console exporter (for development) and OTLP exporter (for production).
+// Sets up the global tracer provider with appropriate resource attributes.
+// Returns nil if tracing is disabled (TracesExporter: "none").
+func InitSDKWithConfig(serviceName string, cfg *Config) error {
+	// Create resource with service information
+	res, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(cfg.ServiceVersion),
+			semconv.DeploymentEnvironment(cfg.Environment),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	var exporter sdktrace.SpanExporter = cfg.mockExporter
+	var err2 error
+	switch cfg.TracesExporter {
+	case "none":
+		// No exporter - tracing is disabled
+		return nil
+	case "console":
+		// Console exporter for development and debugging
+		exporter, err2 = buildConsoleExporter(cfg)
+	case "otlp":
+		exporter, err2 = buildOtlpExporter(cfg)
+	}
+	// Failed to create exporter
+	if err2 != nil {
+		return err2
+	}
+	// Unsupported exporter type
+	if exporter == nil {
+		return fmt.Errorf("unsupported OpenTelemetry exporter type: %s", cfg.TracesExporter)
+	}
+
+	// Create trace provider
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+
+	// Set global trace provider
+	otel.SetTracerProvider(tp)
+
+	return nil
+}
+
 // buildConsoleExporterOptions builds the options for the console exporter
 // based on the provided configuration. Handles pretty printing, timestamps,
 // and custom writer destinations (stderr, stdout, or file paths).
-func buildConsoleExporterOptions(cfg *Config) []stdouttrace.Option {
+func buildConsoleExporter(cfg *Config) (sdktrace.SpanExporter, error) {
 	var opts []stdouttrace.Option
 
 	// Start with pretty print if enabled
@@ -259,249 +255,77 @@ func buildConsoleExporterOptions(cfg *Config) []stdouttrace.Option {
 			opts = append(opts, stdouttrace.WithWriter(writer))
 		}
 	}
-
-	return opts
+	return stdouttrace.New(opts...)
 }
 
-// Initialization Functions
+func buildOtlpExporter(cfg *Config) (sdktrace.SpanExporter, error) {
+	// OTLP exporter for production (sends to Grafana Alloy or other OTLP-compatible backends)
+	// Build client options based on configuration
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
+		otlptracehttp.WithInsecure(), // For development, can be overridden
+	}
 
-// InitSDK initializes the OpenTelemetry SDK with configuration from environment variables.
-// This is a convenience function that calls GetConfigFromEnv() and InitSDKWithConfig().
-// Returns nil if tracing is disabled (OTEL_TRACES_EXPORTER=none).
-func InitSDK(serviceName string) error {
-	cfg := GetConfigFromEnv()
-	return InitSDKWithConfig(serviceName, cfg)
+	// Add timeout if specified (supports both duration strings and milliseconds)
+	if cfg.OTLPTimeout != "" {
+		// Try parsing as duration first (e.g., "10s", "30s")
+		if duration, err := time.ParseDuration(cfg.OTLPTimeout); err == nil {
+			opts = append(opts, otlptracehttp.WithTimeout(duration))
+		} else {
+			// Try parsing as milliseconds (e.g., "10000")
+			if ms, err := strconv.Atoi(cfg.OTLPTimeout); err == nil {
+				opts = append(opts, otlptracehttp.WithTimeout(time.Duration(ms)*time.Millisecond))
+			}
+		}
+	}
+
+	// Add headers if specified (useful for authentication)
+	if len(cfg.OTLPHeaders) > 0 {
+		opts = append(opts, otlptracehttp.WithHeaders(cfg.OTLPHeaders))
+	}
+
+	// Add compression if specified
+	if cfg.OTLPCompression == "gzip" {
+		opts = append(opts, otlptracehttp.WithCompression(otlptracehttp.GzipCompression))
+	}
+
+	// Add custom URL path if specified
+	if cfg.OTLPURLPath != "" {
+		opts = append(opts, otlptracehttp.WithURLPath(cfg.OTLPURLPath))
+	}
+
+	// Add retry configuration if specified
+	if cfg.OTLPRetryEnabled {
+		// Default retry config with exponential backoff
+		retryConfig := otlptracehttp.RetryConfig{
+			Enabled:         true,
+			InitialInterval: 5 * time.Second,
+			MaxInterval:     30 * time.Second,
+			MaxElapsedTime:  60 * time.Second,
+		}
+		opts = append(opts, otlptracehttp.WithRetry(retryConfig))
+	}
+
+	client := otlptracehttp.NewClient(opts...)
+	return otlptrace.New(context.Background(), client)
 }
 
-// InitSDKWithConfig initializes the OpenTelemetry SDK with the provided configuration.
-// Supports console exporter (for development) and OTLP exporter (for production).
-// Sets up the global tracer provider with appropriate resource attributes.
-// Returns nil if tracing is disabled (TracesExporter: "none").
-func InitSDKWithConfig(serviceName string, cfg *Config) error {
-	// Create resource with service information
-	res, err := resource.New(context.Background(),
-		resource.WithAttributes(
-			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion(cfg.ServiceVersion),
-			semconv.DeploymentEnvironment(cfg.Environment),
-		),
-	)
-	if err != nil {
-		return err
+// mockExporter is a simple mock implementation of sdktrace.SpanExporter
+type mockExporter struct {
+	RecordedSpans []sdktrace.ReadOnlySpan
+}
+
+// buildMockExporter creates a mock exporter for testing purposes.
+func (m *mockExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	// Mock implementation: just log the spans to stdout
+	for _, span := range spans {
+		fmt.Println("Mock Exported Span:", span)
+		m.RecordedSpans = append(m.RecordedSpans, span)
 	}
-
-	var exporter sdktrace.SpanExporter
-	var err2 error
-
-	switch cfg.TracesExporter {
-	case "none":
-		// No exporter - tracing is disabled
-		return nil
-	case "console":
-		// Console exporter for development and debugging
-		opts := buildConsoleExporterOptions(cfg)
-		exporter, err2 = stdouttrace.New(opts...)
-	case "otlp":
-		// OTLP exporter for production (sends to Grafana Alloy or other OTLP-compatible backends)
-		// Build client options based on configuration
-		opts := []otlptracehttp.Option{
-			otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
-			otlptracehttp.WithInsecure(), // For development, can be overridden
-		}
-
-		// Add timeout if specified (supports both duration strings and milliseconds)
-		if cfg.OTLPTimeout != "" {
-			// Try parsing as duration first (e.g., "10s", "30s")
-			if duration, err := time.ParseDuration(cfg.OTLPTimeout); err == nil {
-				opts = append(opts, otlptracehttp.WithTimeout(duration))
-			} else {
-				// Try parsing as milliseconds (e.g., "10000")
-				if ms, err := strconv.Atoi(cfg.OTLPTimeout); err == nil {
-					opts = append(opts, otlptracehttp.WithTimeout(time.Duration(ms)*time.Millisecond))
-				}
-			}
-		}
-
-		// Add headers if specified (useful for authentication)
-		if len(cfg.OTLPHeaders) > 0 {
-			opts = append(opts, otlptracehttp.WithHeaders(cfg.OTLPHeaders))
-		}
-
-		// Add compression if specified
-		if cfg.OTLPCompression == "gzip" {
-			opts = append(opts, otlptracehttp.WithCompression(otlptracehttp.GzipCompression))
-		}
-
-		// Add custom URL path if specified
-		if cfg.OTLPURLPath != "" {
-			opts = append(opts, otlptracehttp.WithURLPath(cfg.OTLPURLPath))
-		}
-
-		// Add retry configuration if specified
-		if cfg.OTLPRetryEnabled {
-			// Default retry config with exponential backoff
-			retryConfig := otlptracehttp.RetryConfig{
-				Enabled:         true,
-				InitialInterval: 5 * time.Second,
-				MaxInterval:     30 * time.Second,
-				MaxElapsedTime:  60 * time.Second,
-			}
-			opts = append(opts, otlptracehttp.WithRetry(retryConfig))
-		}
-
-		client := otlptracehttp.NewClient(opts...)
-		exporter, err2 = otlptrace.New(context.Background(), client)
-	default:
-		return fmt.Errorf("unsupported OpenTelemetry exporter type: %s", cfg.TracesExporter)
-	}
-
-	if err2 != nil {
-		return err2
-	}
-
-	// Create trace provider
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
-	)
-
-	// Set global trace provider
-	otel.SetTracerProvider(tp)
-
 	return nil
 }
 
-// Middleware Functions
-
-// HTTP Middleware Functions
-
-// NewMiddleware creates a basic HTTP OpenTelemetry middleware using otelchi.
-// For more advanced span enrichment, use GetEnrichedOTelMiddleware instead.
-func NewMiddleware(serviceName string) func(http.Handler) http.Handler {
-	return otelchi.Middleware(serviceName)
-}
-
-// NewMiddlewareWithConfig creates an HTTP OpenTelemetry middleware with custom configuration.
-// Returns a no-op middleware if EnableHTTPTracing is false in the config.
-func NewMiddlewareWithConfig(config *Config) func(http.Handler) http.Handler {
-	if !config.EnableHTTPTracing {
-		return func(next http.Handler) http.Handler {
-			return next
-		}
-	}
-	return otelchi.Middleware(config.ServiceName)
-}
-
-// River Middleware Functions
-
-// NewRiverMiddleware creates a River job queue OpenTelemetry middleware.
-// Returns nil if EnableRiverTracing is false in the config.
-// The middleware respects the DurationUnit setting from the config.
-func NewRiverMiddleware(cfg *Config) *otelriver.Middleware {
-	if !cfg.EnableRiverTracing {
-		return nil
-	}
-
-	middlewareConfig := &otelriver.MiddlewareConfig{
-		DurationUnit: cfg.DurationUnit,
-	}
-
-	return otelriver.NewMiddleware(middlewareConfig)
-}
-
-// GetEnrichedOTelMiddleware returns an OpenTelemetry HTTP middleware with enriched spans.
-// This middleware automatically adds comprehensive span attributes including:
-//   - User information (ID, name, email, roles) from authentication context
-//   - Request metadata (user agent, content length, client IP)
-//   - API-specific attributes based on cfg.ApiType (REST path/query params, GraphQL operation type)
-//   - Request ID and API key presence indicators
-//
-// Returns a no-op middleware if tracing is disabled (cfg.Enabled == false).
-func GetEnrichedOTelMiddleware(cfg *Config) func(http.Handler) http.Handler {
-	// Return no-op middleware if tracing is disabled
-	if !cfg.Enabled {
-		return func(next http.Handler) http.Handler { return next }
-	}
-
-	baseMiddleware := NewMiddleware(cfg.ServiceName)
-
-	return func(next http.Handler) http.Handler {
-		return baseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			span := trace.SpanFromContext(r.Context())
-
-			// Add user information if available
-			if user := authn.ForContext(r.Context()); user != nil {
-				span.SetAttributes(
-					attribute.String("user.id", user.ID()),
-					attribute.String("user.name", user.Name()),
-					attribute.String("user.email", user.Email()),
-				)
-				if roles := user.Roles(); len(roles) > 0 {
-					span.SetAttributes(attribute.StringSlice("user.roles", roles))
-				}
-			}
-
-			// Add request metadata
-			span.SetAttributes(attribute.String("http.user_agent", r.UserAgent()))
-
-			// Handle parameters based on API type from config
-			switch cfg.ApiType {
-			case "rest":
-				// Add URL parameters from chi router context
-				span.SetAttributes(attribute.String("api.type", cfg.ApiType))
-				if rctx := chi.RouteContext(r.Context()); rctx != nil {
-					// Add path parameters only if they exist
-					for i, k := range rctx.URLParams.Keys {
-						if i < len(rctx.URLParams.Values) && rctx.URLParams.Values[i] != "" {
-							span.SetAttributes(attribute.String("http.path_param."+k, rctx.URLParams.Values[i]))
-						}
-					}
-				}
-				// Add query parameters
-				query := r.URL.Query()
-				for k, v := range query {
-					if len(v) > 0 {
-						span.SetAttributes(attribute.String("http.query_param."+k, v[0]))
-					}
-				}
-			case "graphql":
-				// For GraphQL, check if it's a POST with JSON body
-				span.SetAttributes(attribute.String("api.type", cfg.ApiType))
-				if r.Method == "POST" && r.Header.Get("Content-Type") == "application/json" {
-					// We'll only track that it's a GraphQL operation
-					span.SetAttributes(attribute.String("graphql.request_type", "operation"))
-				} else if r.Method == "GET" {
-					// GET requests to GraphQL endpoint are usually schema introspection
-					span.SetAttributes(attribute.String("graphql.request_type", "introspection"))
-				}
-			}
-
-			// Add content length for all JSON requests
-			if r.Header.Get("Content-Type") == "application/json" {
-				if r.ContentLength > 0 && r.ContentLength < 1024*1024 { // 1MB limit
-					span.SetAttributes(attribute.String("http.content_length", fmt.Sprintf("%d", r.ContentLength)))
-				}
-			}
-
-			// Add client IP (prioritize Kong headers)
-			if xRealIP := r.Header.Get("X-Real-IP"); xRealIP != "" {
-				span.SetAttributes(attribute.String("http.real_ip", xRealIP))
-			} else if xForwardedFor := r.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
-				span.SetAttributes(attribute.String("http.forwarded_for", xForwardedFor))
-			} else {
-				span.SetAttributes(attribute.String("http.remote_addr", r.RemoteAddr))
-			}
-
-			// Add request ID and API key
-			if requestID := middleware.GetReqID(r.Context()); requestID != "" {
-				span.SetAttributes(attribute.String("request.id", requestID))
-			}
-			// Just mark if an API key is present, never include the actual key
-			if apiKey := r.Header.Get("apikey"); apiKey != "" {
-				span.SetAttributes(attribute.String("http.apikey", "present"))
-			}
-
-			next.ServeHTTP(w, r)
-		}))
-	}
+func (m *mockExporter) Shutdown(ctx context.Context) error {
+	// Mock shutdown does nothing
+	return nil
 }

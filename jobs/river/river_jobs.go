@@ -44,7 +44,7 @@ func (r riverJobArgs) ToJob() jobs.Job {
 	}
 }
 
-func newRiverJobArgsFrmoJob(job jobs.Job) riverJobArgs {
+func newRiverJobArgsFromJob(job jobs.Job) riverJobArgs {
 	return riverJobArgs{
 		Queue:       job.Queue,
 		JobType:     job.JobType,
@@ -183,7 +183,7 @@ func (w *RiverJobs) makeRiverJobArgs(job jobs.Job) river.InsertManyParams {
 		}
 	}
 	return river.InsertManyParams{
-		Args:       newRiverJobArgsFrmoJob(job),
+		Args:       newRiverJobArgsFromJob(job),
 		InsertOpts: &insertOpts,
 	}
 }
