@@ -78,8 +78,8 @@ type Config struct {
 	OTLPURLPath      string            // custom URL path for OTLP endpoint
 	OTLPRetryEnabled bool              // whether to enable retry with exponential backoff
 
-	// mock exporter for testing purposes
-	mockExporter sdktrace.SpanExporter
+	// exporter
+	mockExporter sdktrace.SpanExporter // mock exporter for testing purposes
 }
 
 // DefaultConfig returns a default configuration with sensible defaults.
@@ -94,7 +94,7 @@ func DefaultConfig() *Config {
 		Environment:             "development",
 		ServiceVersion:          "1.0.0",
 		TracesExporter:          "none",
-		OTLPEndpoint:            "http://grafana-alloy:4317",
+		OTLPEndpoint:            "",
 		StdoutPrettyPrint:       true,
 		StdoutWithoutTimestamps: false,
 		OTLPHeaders:             make(map[string]string),
@@ -307,23 +307,4 @@ func buildOtlpExporter(cfg *Config) (sdktrace.SpanExporter, error) {
 
 	client := otlptracehttp.NewClient(opts...)
 	return otlptrace.New(context.Background(), client)
-}
-
-// mockExporter is a simple mock implementation of sdktrace.SpanExporter
-type mockExporter struct {
-	RecordedSpans []sdktrace.ReadOnlySpan
-}
-
-// buildMockExporter creates a mock exporter for testing purposes.
-func (m *mockExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
-	// Mock implementation: just log the spans to stdout
-	for _, span := range spans {
-		m.RecordedSpans = append(m.RecordedSpans, span)
-	}
-	return nil
-}
-
-func (m *mockExporter) Shutdown(ctx context.Context) error {
-	// Mock shutdown does nothing
-	return nil
 }
