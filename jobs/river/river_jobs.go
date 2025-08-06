@@ -43,7 +43,7 @@ func (r riverJobArgs) ToJob() jobs.Job {
 	}
 }
 
-func newRiverJobArgsFrmoJob(job jobs.Job) riverJobArgs {
+func newRiverJobArgsFromJob(job jobs.Job) riverJobArgs {
 	return riverJobArgs{
 		Queue:       job.Queue,
 		JobType:     job.JobType,
@@ -67,28 +67,34 @@ type RiverJobs struct {
 }
 
 func NewRiverJobs(pool *pgxpool.Pool, queuePrefix string) (*RiverJobs, error) {
+	return NewRiverJobsWithMiddleware(pool, queuePrefix)
+}
+
+func NewRiverJobsWithMiddleware(pool *pgxpool.Pool, queuePrefix string, middlewares ...rivertype.Middleware) (*RiverJobs, error) {
 	w := &RiverJobs{
 		pool:        pool,
 		jobMapper:   jobs.NewJobMapper(),
 		queuePrefix: queuePrefix,
 	}
-	return w, w.initClient()
+	return w, w.initClient(middlewares...)
 }
 
 func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
 	return w.riverClient
 }
 
-func (w *RiverJobs) initClient() error {
+func (w *RiverJobs) initClient(middlewares ...rivertype.Middleware) error {
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
+
 	w.riverClient, err = river.NewClient(riverpgxv5.New(w.pool), &river.Config{
 		Queues:            map[string]river.QueueConfig{defaultQueue: {MaxWorkers: 4}},
 		JobTimeout:        120 * time.Minute,
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
+		Middleware:        middlewares,
 	})
 	if err != nil {
 		return err
@@ -105,6 +111,7 @@ func (w *RiverJobs) initClient() error {
 		return err
 	}
 	return nil
+
 }
 
 func (w *RiverJobs) Use(mwf jobs.JobMiddleware) {
@@ -166,7 +173,7 @@ func (w *RiverJobs) makeRiverJobArgs(job jobs.Job) river.InsertManyParams {
 		}
 	}
 	return river.InsertManyParams{
-		Args:       newRiverJobArgsFrmoJob(job),
+		Args:       newRiverJobArgsFromJob(job),
 		InsertOpts: &insertOpts,
 	}
 }
