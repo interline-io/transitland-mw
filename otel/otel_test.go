@@ -23,10 +23,17 @@ func newTestServerWithMiddleware(middlewares ...Middleware) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("test response"))
 	})
-	r.Get("/test-graphql", func(w http.ResponseWriter, r *http.Request) {
+	r.Post("/test-graphql", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"data": [{"test": "response"}]}`))
+	})
+	r.Get("/test-rest/{id}/{name}", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		name := chi.URLParam(r, "name")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id": "` + id + `", "name": "` + name + `"}`))
 	})
 	return httptest.NewServer(r)
 }
@@ -79,7 +86,7 @@ func TestOTelHTTPMiddleware(t *testing.T) {
 		assert.Equal(t, "/test-endpoint", span.Name(), "expected span name '/test-endpoint'")
 
 		// Verify some key attributes are present
-		var foundHttpMethod, foundHttpRoute bool
+		var foundHttpMethod, foundHttpRoute, foundUserAgent bool
 		for _, attr := range span.Attributes() {
 			switch attr.Key {
 			case "http.method":
@@ -88,10 +95,14 @@ func TestOTelHTTPMiddleware(t *testing.T) {
 			case "http.route":
 				assert.Equal(t, "/test-endpoint", attr.Value.AsString(), "expected http.route to be '/test-endpoint'")
 				foundHttpRoute = true
+			case "http.user_agent":
+				assert.Equal(t, "Go-http-client/1.1", attr.Value.AsString(), "expected http.user_agent to be 'Go-http-client/1.1'")
+				foundUserAgent = true
 			}
 		}
 		assert.True(t, foundHttpMethod, "expected to find http.method attribute in span")
 		assert.True(t, foundHttpRoute, "expected to find http.route attribute in span")
+		assert.True(t, foundUserAgent, "expected to find http.user_agent attribute in span")
 	}
 }
 
@@ -114,7 +125,8 @@ func TestGraphQLHTTPMiddleware(t *testing.T) {
 	defer server.Close()
 
 	// Make a test request to the server
-	resp, err := http.Get(server.URL + "/test-graphql")
+	path := "/test-graphql"
+	resp, err := http.Post(server.URL+path, "application/json", nil)
 	assert.NoError(t, err, "expected no error during request")
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "expected status 200")
@@ -126,12 +138,77 @@ func TestGraphQLHTTPMiddleware(t *testing.T) {
 	} else {
 		// Verify the span details
 		span := mx.RecordedSpans[0]
-		assert.Equal(t, "/test-graphql", span.Name(), "expected span name '/test-graphql'")
+		assert.Equalf(t, path, span.Name(), "expected span name '%s'", path)
 
 		// Verify some key attributes are present
 		attrs := span.Attributes()
+		var foundOperationType, foundApiType bool
 		for _, attr := range attrs {
-			fmt.Printf("Span Attribute: %s = %s\n", attr.Key, attr.Value.AsString())
+			switch attr.Key {
+			case "graphql.request_type":
+				assert.Equal(t, "operation", attr.Value.AsString(), "expected graphql.request_type to be 'operation'")
+				foundOperationType = true
+			case "api.type":
+				assert.Equal(t, "graphql", attr.Value.AsString(), "expected api.type to be 'graphql'")
+				foundApiType = true
+			}
 		}
+		assert.True(t, foundOperationType, "expected to find graphql.request_type attribute in span")
+		assert.True(t, foundApiType, "expected to find api.type attribute in span")
+	}
+}
+
+func TestRestHTTPMiddleware(t *testing.T) {
+	mx := &mockExporter{}
+	config := &Config{
+		ServiceName:       "test-service",
+		TracesExporter:    "mock", // Use mock exporter
+		mockExporter:      mx,     // Use a mock exporter for testing
+		EnableHTTPTracing: true,
+	}
+	err := InitSDKWithConfig("test", config)
+	assert.NoError(t, err, "expected no error during SDK initialization")
+
+	// Create a test server using the chi router
+	server := newTestServerWithMiddleware(
+		NewOTelHTTPMiddleware(config),
+		NewRestHTTPMiddleware(config),
+	)
+	defer server.Close()
+
+	// Make a test request to the server
+	path := "/test-rest/123/abc?test=ok"
+	handlerName := "/test-rest/{id}/{name}"
+	resp, err := http.Get(server.URL + path)
+	assert.NoError(t, err, "expected no error during request")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "expected status 200")
+
+	// Verify that the mock exporter recorded spans
+	flushSpans(t)
+	if len(mx.RecordedSpans) == 0 {
+		t.Error("expected mock exporter to record spans, but got none")
+	} else {
+		// Verify the span details
+		span := mx.RecordedSpans[0]
+		assert.Equalf(t, handlerName, span.Name(), "expected span name '%s'", path)
+
+		// Verify some key attributes are present
+		attrs := span.Attributes()
+		var foundApiType, foundQueryParam bool
+		for _, attr := range attrs {
+			switch attr.Key {
+			case "api.type":
+				assert.Equal(t, "rest", attr.Value.AsString(), "expected api.type to be 'rest'")
+				foundApiType = true
+			case "http.query_param.test":
+				assert.Equal(t, "ok", attr.Value.AsString(), "expected http.query_param.test to be 'ok'")
+				foundQueryParam = true
+			default:
+				fmt.Printf("Unexpected attribute: %s = %s\n", attr.Key, attr.Value.AsString())
+			}
+		}
+		assert.True(t, foundApiType, "expected to find api.type attribute in span")
+		assert.True(t, foundQueryParam, "expected to find http.query_param.test attribute in span")
 	}
 }

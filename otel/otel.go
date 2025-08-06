@@ -56,7 +56,6 @@ import (
 type Config struct {
 	ServiceName    string // Service name for telemetry resource attribution
 	DurationUnit   string // "ms" or "s" - duration unit used for River job tracing
-	ApiType        string // "rest", "graphql", or "" - determines span attribute enrichment strategy
 	TracesExporter string // "console", "otlp", or "none" - exporter type
 	Environment    string // deployment environment (e.g., "development", "production")
 	ServiceVersion string // service version for telemetry resource attribution

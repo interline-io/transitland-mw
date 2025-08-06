@@ -17,30 +17,10 @@ import (
 type Middleware func(next http.Handler) http.Handler
 
 func NewOTelHTTPMiddleware(config *Config) Middleware {
-	baseMiddleware := otelchi.Middleware(config.ServiceName)
-	return baseMiddleware
-}
-
-// NewHTTPMiddlewareWithConfig creates an HTTP OpenTelemetry middleware with custom configuration.
-// Returns a no-op middleware if EnableHTTPTracing is false in the config.
-func NewHTTPMiddlewareWithConfig(config *Config) Middleware {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		baseMw := otelchi.Middleware(config.ServiceName)
+		return baseMw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			span := trace.SpanFromContext(r.Context())
-
-			// Add user information if available
-			if user := authn.ForContext(r.Context()); user != nil {
-				span.SetAttributes(
-					attribute.String("user.id", user.ID()),
-					attribute.String("user.name", user.Name()),
-					attribute.String("user.email", user.Email()),
-				)
-				if roles := user.Roles(); len(roles) > 0 {
-					span.SetAttributes(attribute.StringSlice("user.roles", roles))
-				}
-			}
-
-			// Add request metadata
 			span.SetAttributes(attribute.String("http.user_agent", r.UserAgent()))
 
 			// Add content length for all JSON requests
@@ -59,15 +39,38 @@ func NewHTTPMiddlewareWithConfig(config *Config) Middleware {
 				span.SetAttributes(attribute.String("http.remote_addr", r.RemoteAddr))
 			}
 
-			// Add request ID and API key
+			// Add request ID if set
 			if requestID := middleware.GetReqID(r.Context()); requestID != "" {
 				span.SetAttributes(attribute.String("request.id", requestID))
 			}
+
+			next.ServeHTTP(w, r)
+		}))
+	}
+}
+
+// NewUserHTTPMiddleware creates an HTTP OpenTelemetry middleware for user requests.
+func NewUserHTTPMiddleware(config *Config) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+
+			// Add user information if available
+			if user := authn.ForContext(r.Context()); user != nil {
+				span.SetAttributes(
+					attribute.String("user.id", user.ID()),
+					attribute.String("user.name", user.Name()),
+					attribute.String("user.email", user.Email()),
+				)
+				if roles := user.Roles(); len(roles) > 0 {
+					span.SetAttributes(attribute.StringSlice("user.roles", roles))
+				}
+			}
+
 			// Just mark if an API key is present, never include the actual key
 			if apiKey := r.Header.Get("apikey"); apiKey != "" {
 				span.SetAttributes(attribute.String("http.apikey", "present"))
 			}
-
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -78,7 +81,7 @@ func NewGraphQLHTTPMiddleware(cfg *Config) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			span := trace.SpanFromContext(r.Context())
 			// For GraphQL, check if it's a POST with JSON body
-			span.SetAttributes(attribute.String("api.type", cfg.ApiType))
+			span.SetAttributes(attribute.String("api.type", "graphql"))
 			if r.Method == "POST" && r.Header.Get("Content-Type") == "application/json" {
 				// We'll only track that it's a GraphQL operation
 				span.SetAttributes(attribute.String("graphql.request_type", "operation"))
@@ -86,17 +89,17 @@ func NewGraphQLHTTPMiddleware(cfg *Config) Middleware {
 				// GET requests to GraphQL endpoint are usually schema introspection
 				span.SetAttributes(attribute.String("graphql.request_type", "introspection"))
 			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }
 
 func NewRestHTTPMiddleware(cfg *Config) Middleware {
 	return func(next http.Handler) http.Handler {
-
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			span := trace.SpanFromContext(r.Context())
 			// Add URL parameters from chi router context
-			span.SetAttributes(attribute.String("api.type", cfg.ApiType))
+			span.SetAttributes(attribute.String("api.type", "rest"))
 			if rctx := chi.RouteContext(r.Context()); rctx != nil {
 				// Add path parameters only if they exist
 				for i, k := range rctx.URLParams.Keys {
@@ -112,6 +115,7 @@ func NewRestHTTPMiddleware(cfg *Config) Middleware {
 					span.SetAttributes(attribute.String("http.query_param."+k, v[0]))
 				}
 			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }
