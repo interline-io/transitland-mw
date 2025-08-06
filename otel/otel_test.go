@@ -2,13 +2,13 @@ package otel
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/interline-io/transitland-mw/auth/authn"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -195,7 +195,7 @@ func TestRestHTTPMiddleware(t *testing.T) {
 
 		// Verify some key attributes are present
 		attrs := span.Attributes()
-		var foundApiType, foundQueryParam bool
+		var foundApiType, foundQueryParam, foundPathId bool
 		for _, attr := range attrs {
 			switch attr.Key {
 			case "api.type":
@@ -204,11 +204,69 @@ func TestRestHTTPMiddleware(t *testing.T) {
 			case "http.query_param.test":
 				assert.Equal(t, "ok", attr.Value.AsString(), "expected http.query_param.test to be 'ok'")
 				foundQueryParam = true
+			case "http.path_param.id":
+				assert.Equal(t, "123", attr.Value.AsString(), "expected http.path_param.id to be '123'")
+				foundPathId = true
 			default:
-				fmt.Printf("Unexpected attribute: %s = %s\n", attr.Key, attr.Value.AsString())
 			}
 		}
 		assert.True(t, foundApiType, "expected to find api.type attribute in span")
 		assert.True(t, foundQueryParam, "expected to find http.query_param.test attribute in span")
+		assert.True(t, foundPathId, "expected to find http.path_param.id attribute in span")
+	}
+}
+
+func TestUserMiddleware(t *testing.T) {
+	mx := &mockExporter{}
+	config := &Config{
+		ServiceName:       "test-service",
+		TracesExporter:    "mock", // Use mock exporter
+		mockExporter:      mx,     // Use a mock exporter for testing
+		EnableHTTPTracing: true,
+	}
+	err := InitSDKWithConfig("test", config)
+	assert.NoError(t, err, "expected no error during SDK initialization")
+
+	// Create a test server using the helper function
+	server := newTestServerWithMiddleware(
+		NewOTelHTTPMiddleware(config),
+		NewUserHTTPMiddleware(config),
+	)
+	defer server.Close()
+
+	// Create a request with a mock user in the context
+	path := "/test-endpoint"
+	rctx := authn.WithUser(context.Background(), authn.NewCtxUser("ian", "", ""))
+	req := httptest.NewRequest("GET", path, nil)
+	req = req.WithContext(rctx)
+
+	// Use ResponseRecorder and call ServeHTTP directly on the server's handler
+	rr := httptest.NewRecorder()
+	server.Config.Handler.ServeHTTP(rr, req)
+
+	// Verify the response
+	assert.Equal(t, http.StatusOK, rr.Code, "expected status 200")
+
+	// Verify that the mock exporter recorded spans
+	flushSpans(t)
+	if len(mx.RecordedSpans) == 0 {
+		t.Error("expected mock exporter to record spans, but got none")
+	} else {
+		// Verify the span details
+		span := mx.RecordedSpans[0]
+		assert.Equalf(t, path, span.Name(), "expected span name '%s'", path)
+
+		// Verify some key attributes are present
+		attrs := span.Attributes()
+		var foundUserId bool
+		for _, attr := range attrs {
+			switch attr.Key {
+			case "user.id":
+				assert.Equal(t, "ian", attr.Value.AsString(), "expected user.id to be 'ian'")
+				foundUserId = true
+			default:
+			}
+		}
+		assert.True(t, foundUserId, "expected to find user.id attribute in span")
 	}
 }

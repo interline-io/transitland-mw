@@ -318,7 +318,6 @@ type mockExporter struct {
 func (m *mockExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
 	// Mock implementation: just log the spans to stdout
 	for _, span := range spans {
-		fmt.Println("Mock Exported Span:", span)
 		m.RecordedSpans = append(m.RecordedSpans, span)
 	}
 	return nil

@@ -98,24 +98,27 @@ func NewRestHTTPMiddleware(cfg *Config) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			span := trace.SpanFromContext(r.Context())
-			// Add URL parameters from chi router context
 			span.SetAttributes(attribute.String("api.type", "rest"))
-			if rctx := chi.RouteContext(r.Context()); rctx != nil {
-				// Add path parameters only if they exist
-				for i, k := range rctx.URLParams.Keys {
-					if i < len(rctx.URLParams.Values) && rctx.URLParams.Values[i] != "" {
-						span.SetAttributes(attribute.String("http.path_param."+k, rctx.URLParams.Values[i]))
-					}
-				}
-			}
-			// Add query parameters
+
+			// Add query parameters (these are available immediately)
 			query := r.URL.Query()
 			for k, v := range query {
 				if len(v) > 0 {
 					span.SetAttributes(attribute.String("http.query_param."+k, v[0]))
 				}
 			}
+
+			// Wrap the ResponseWriter to capture path params after routing
 			next.ServeHTTP(w, r)
+
+			// Now try to get path parameters after the route has been resolved
+			if rctx := chi.RouteContext(r.Context()); rctx != nil {
+				for i, k := range rctx.URLParams.Keys {
+					if i < len(rctx.URLParams.Values) && rctx.URLParams.Values[i] != "" {
+						span.SetAttributes(attribute.String("http.path_param."+k, rctx.URLParams.Values[i]))
+					}
+				}
+			}
 		})
 	}
 }
